@@ -1,1 +1,613 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell 
+} from 'recharts';
+import { 
+  LayoutDashboard, 
+  Database,
+  ArrowRightLeft,
+  FileText,
+  PlusCircle,
+  User,
+  LogOut,
+  Target,
+  RotateCcw,
+  Settings2,
+  CalendarDays,
+  TrendingUp,
+  Users,
+  Clock,
+  Printer,
+  Menu,
+  X,
+  Calculator
+} from 'lucide-react';
+
+const App = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginUser, setLoginUser] = useState('');
+  const [loginError, setLoginError] = useState('');
+  
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Estado da calculadora carregando do localStorage se existir
+  const [calcData, setCalcData] = useState(() => {
+    const savedCalc = localStorage.getItem('logistics_calc_v3');
+    return savedCalc ? JSON.parse(savedCalc) : { pecas: 5000, jornada: 9 };
+  });
+
+  // Metas carregando do localStorage
+  const [metas, setMetas] = useState(() => {
+    const savedMetas = localStorage.getItem('logistics_metas_v3');
+    if (savedMetas) return JSON.parse(savedMetas);
+    return {
+      CONFERENTE: 220,
+      AUXILIAR: 110
+    };
+  });
+
+  const generateWeeklyStructure = () => {
+    const dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+    return dias.map((dia, index) => ({
+      id: `fixo-${index}`,
+      dia: dia,
+      pecas: 0,
+      conferentes: 0,
+      auxiliares: 0,
+      jornada: 9,
+    }));
+  };
+
+  // Dados semanais carregando do localStorage
+  const [data, setData] = useState(() => {
+    const savedData = localStorage.getItem('logistics_data_v3');
+    if (savedData) return JSON.parse(savedData);
+    return { atual: generateWeeklyStructure() };
+  });
+
+  // Efeito único para persistir todas as alterações no localStorage
+  useEffect(() => {
+    localStorage.setItem('logistics_data_v3', JSON.stringify(data));
+    localStorage.setItem('logistics_metas_v3', JSON.stringify(metas));
+    localStorage.setItem('logistics_calc_v3', JSON.stringify(calcData));
+  }, [data, metas, calcData]);
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (loginUser.toUpperCase() === 'CDTO') {
+      setIsAuthenticated(true);
+      setLoginError('');
+    } else {
+      setLoginError('Utilizador não autorizado.');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setLoginUser('');
+  };
+
+  const resetWeek = () => {
+    const modalConfirm = window.confirm('Deseja limpar todos os dados e reiniciar a semana?');
+    if (modalConfirm) {
+      setData({ atual: generateWeeklyStructure() });
+    }
+  };
+
+  const updateData = (id, field, value) => {
+    const val = field === 'dia' ? value : (value === "" ? 0 : parseFloat(value));
+    setData(prev => ({
+      ...prev,
+      atual: prev.atual.map(item => 
+        item.id === id ? { ...item, [field]: val } : item
+      )
+    }));
+  };
+
+  const calculateProdReal = (pecas, qtdPessoas, jornada) => {
+    if (qtdPessoas <= 0 || jornada <= 0 || pecas <= 0) return 0;
+    return (pecas / qtdPessoas / jornada).toFixed(0);
+  };
+
+  const calculateSugerido = (pecas, jornada, meta) => {
+    if (pecas <= 0 || jornada <= 0 || meta <= 0) return 0;
+    return Math.ceil(pecas / (jornada * meta));
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'input', label: 'Lançar Dados', icon: PlusCircle },
+    { id: 'meta', label: 'Análise de Metas', icon: Target },
+    { id: 'calculadora', label: 'Calculadora HC', icon: Calculator }, 
+    { id: 'atual', label: 'Histórico', icon: CalendarDays },
+  ];
+
+  const totalPecasSemana = data.atual.reduce((acc, curr) => acc + curr.pecas, 0);
+  const diasAtivos = data.atual.filter(i => i.pecas > 0).length || 1;
+  
+  const mediaRealConf = (data.atual.filter(i => i.pecas > 0).reduce((acc, curr) => acc + parseFloat(calculateProdReal(curr.pecas, curr.conferentes, curr.jornada)), 0) / diasAtivos).toFixed(0);
+  const mediaRealAux = (data.atual.filter(i => i.pecas > 0).reduce((acc, curr) => acc + parseFloat(calculateProdReal(curr.pecas, curr.auxiliares, curr.jornada)), 0) / diasAtivos).toFixed(0);
+
+  const mediaSugeridaConf = Math.ceil(data.atual.reduce((acc, curr) => acc + calculateSugerido(curr.pecas, curr.jornada, metas.CONFERENTE), 0) / diasAtivos);
+  const mediaSugeridaAux = Math.ceil(data.atual.reduce((acc, curr) => acc + calculateSugerido(curr.pecas, curr.jornada, metas.AUXILIAR), 0) / diasAtivos);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans text-slate-900">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-2xl border border-slate-100">
+            <div className="flex flex-col items-center mb-10 text-center">
+              <div className="w-16 h-16 bg-red-800 rounded-2xl flex items-center justify-center text-white mb-6 shadow-xl shadow-red-900/20 mx-auto">
+                <ArrowRightLeft size={32} strokeWidth={2.5} />
+              </div>
+              <h1 className="text-3xl font-red text-slate-900 tracking-tight">Gestão <span className="text-blue-900">De Desenvolvimento</span></h1>
+              <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] mt-2">Analise de entrada</p>
+            </div>
+            <form onSubmit={handleLogin} className="space-y-6">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Utilizador</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input 
+                    type="text" 
+                    value={loginUser}
+                    onChange={(e) => setLoginUser(e.target.value)}
+                    placeholder="Introduza CDTO"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-red-50 transition-all"
+                  />
+                </div>
+              </div>
+              {loginError && <p className="text-red-800 text-[10px] font-bold text-center uppercase tracking-wider">{loginError}</p>}
+              <button type="submit" className="w-full bg-blue-800 text-white py-4 rounded-2xl font-black uppercase shadow-xl hover:bg-red-900 transition-all active:scale-95">Entrar</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row text-slate-900 font-sans antialiased overflow-x-hidden">
+      <style>{`
+        @media print {
+          aside, .no-print, .mobile-header { display: none !important; }
+          main { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+          .print-container { box-shadow: none !important; border: none !important; background: white !important; }
+          .recharts-responsive-container { width: 100% !important; height: 400px !important; }
+        }
+      `}</style>
+
+      {/* Mobile Top Bar */}
+      <div className="md:hidden flex items-center justify-between p-4 bg-slate-950 text-white no-print sticky top-0 z-[60] mobile-header">
+        <div className="flex items-center gap-2">
+            <ArrowRightLeft size={20} className="text-red-700" />
+            <span className="font-red text-lg tracking-tighter">Gestão </span>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 bg-slate-900 rounded-lg">
+            {isMobileMenuOpen ? <X size={24}/> : <Menu size={24}/>}
+        </button>
+      </div>
+
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-950 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 no-print ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="h-full flex flex-col p-6">
+          <div className="hidden md:flex items-center gap-3 mb-10 px-2 text-white">
+            <div className="w-10 h-10 bg-red-800 rounded-lg flex items-center justify-center shadow-lg"><ArrowRightLeft size={20} /></div>
+            <span className="font-red text-xl tracking-tighter">Gestão <span className="text-blue-700">De Desenvolvimento</span></span>
+          </div>
+          
+          <nav className="flex-1 space-y-2 mt-4 md:mt-0">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-bold transition-all ${activeTab === item.id ? 'bg-red-800 text-white shadow-xl shadow-red-950/40' : 'text-slate-500 hover:bg-slate-900 hover:text-white'}`}
+              >
+                <item.icon size={20} />
+                {item.label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="mt-auto pt-6 border-t border-slate-800 space-y-2">
+            <button onClick={resetWeek} className="w-full flex items-center gap-3 px-5 py-3 rounded-xl text-[10px] font-black uppercase text-amber-600 hover:bg-amber-500/10 transition-all">
+              <RotateCcw size={16} /> Limpar Semana
+            </button>
+            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-5 py-3 rounded-xl text-[10px] font-black uppercase text-red-500 hover:bg-red-500/10 transition-all">
+              <LogOut size={16} /> Encerrar Sessão
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <main className="flex-1 w-full flex flex-col min-w-0">
+        <div className="p-4 md:p-8 lg:p-12 max-w-[1400px] mx-auto w-full">
+            
+            <header className="mb-8 md:mb-12 flex flex-col items-center justify-center text-center gap-6">
+              <div className="flex flex-col items-center">
+                <h1 className="text-2xl md:text-3xl font-black text-slate-900 uppercase tracking-tight leading-none">{navItems.find(n => n.id === activeTab)?.label}</h1>
+                <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">Centros de Distribuição • Logística</p>
+              </div>
+              
+              <div className="flex flex-col md:flex-row items-center justify-center gap-4 w-full">
+                <button onClick={handlePrint} className="w-full md:w-auto bg-blue-900 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2 hover:bg-red-800 transition-all shadow-lg no-print active:scale-95">
+                    <Printer size={16} /> Exportar Relatório PDF
+                </button>
+              </div>
+            </header>
+
+            {activeTab === 'dashboard' && (
+              <div className="space-y-6 md:space-y-10 animate-in fade-in duration-500">
+                <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden group">
+                  <div className="relative z-10 text-center">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Volume Total da Semana</p>
+                      <p className="text-4xl md:text-5xl font-black text-slate-900">{totalPecasSemana.toLocaleString()} <span className="text-xs text-slate-400 uppercase">pçs</span></p>
+                  </div>
+                  <Database size={60} className="absolute -right-2 -bottom-2 text-slate-50 group-hover:text-slate-100 transition-colors" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white p-8 rounded-[2.5rem] border-l-8 border-l-blue-900 border border-slate-200 shadow-sm">
+                    <div className="flex justify-between items-start mb-6">
+                      <div>
+                        <p className="text-[10px] font-black text-blue-900 uppercase tracking-widest">Conferente</p>
+                        <h2 className="text-2xl font-black text-slate-800">Performance Meta</h2>
+                      </div>
+                      <div className="bg-blue-50 p-3 rounded-2xl text-blue-900">
+                        <Users size={24} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Meta Definida</p>
+                        <p className="text-3xl font-black text-blue-900">{metas.CONFERENTE}</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase">pç/h</p>
+                      </div>
+                      <div className="bg-blue-900 p-4 rounded-2xl text-center shadow-lg shadow-blue-900/20">
+                        <p className="text-[9px] font-black text-blue-200 uppercase mb-1">Média Realizada</p>
+                        <p className="text-3xl font-black text-white">{mediaRealConf}</p>
+                        <p className="text-[8px] font-bold text-blue-200 uppercase">pç/h</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-[2.5rem] border-l-8 border-l-red-800 border border-slate-200 shadow-sm">
+                    <div className="flex justify-between items-start mb-6">
+                      <div>
+                        <p className="text-[10px] font-black text-red-800 uppercase tracking-widest">Auxiliar</p>
+                        <h2 className="text-2xl font-black text-slate-800">Performance Meta</h2>
+                      </div>
+                      <div className="bg-red-50 p-3 rounded-2xl text-red-800">
+                        <Users size={24} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Meta Definida</p>
+                        <p className="text-3xl font-black text-red-800">{metas.AUXILIAR}</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase">pç/h</p>
+                      </div>
+                      <div className="bg-red-800 p-4 rounded-2xl text-center shadow-lg shadow-red-900/20">
+                        <p className="text-[9px] font-black text-red-100 uppercase mb-1">Média Realizada</p>
+                        <p className="text-3xl font-black text-white">{mediaRealAux}</p>
+                        <p className="text-[8px] font-bold text-red-100 uppercase">pç/h</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-xl relative overflow-hidden">
+                  <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                    <div className="text-center md:text-left">
+                      <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2 mb-2">
+                        <TrendingUp size={18} className="text-amber-500" /> Média Geral da Semana
+                      </h3>
+                      <p className="text-slate-400 text-sm">Headcount diário sugerido para atingimento das metas</p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-6 w-full md:w-auto">
+                      <div className="flex items-center gap-4 bg-white/5 p-5 rounded-3xl border border-white/10 min-w-[200px]">
+                        <div className="w-12 h-12 bg-blue-900/20 rounded-2xl flex items-center justify-center text-blue-500"><Users size={24}/></div>
+                        <div>
+                          <p className="text-[9px] font-black text-slate-500 uppercase">Conf. p/ Meta {metas.CONFERENTE}</p>
+                          <p className="text-3xl font-black text-white">{mediaSugeridaConf} <small className="text-xs text-slate-500">Pess.</small></p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 bg-white/5 p-5 rounded-3xl border border-white/10 min-w-[200px]">
+                        <div className="w-12 h-12 bg-red-900/20 rounded-2xl flex items-center justify-center text-red-500"><Users size={24}/></div>
+                        <div>
+                          <p className="text-[9px] font-black text-slate-500 uppercase">Aux. p/ Meta {metas.AUXILIAR}</p>
+                          <p className="text-3xl font-black text-white">{mediaSugeridaAux} <small className="text-xs text-slate-500">Pess.</small></p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 md:p-8 rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
+                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2"><TrendingUp size={18} className="text-blue-900"/> Performance Diária vs Metas</h3>
+                    <div className="flex gap-4 text-[9px] font-black uppercase">
+                        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-900 rounded-sm"></div> Conferente</div>
+                        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-800 rounded-sm"></div> Auxiliar</div>
+                    </div>
+                  </div>
+                  <div className="h-[300px] md:h-[400px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data.atual} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                        <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{fontSize: 9, fontWeight: 'bold'}} interval={0} />
+                        <YAxis axisLine={false} tickLine={false} tick={{fontSize: 9}} />
+                        <Tooltip 
+                            cursor={{fill: '#F8FAFC'}} 
+                            contentStyle={{borderRadius: '16px', border: 'none', fontSize: '10px', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
+                        />
+                        <Bar name="Conferente" dataKey={(d) => calculateProdReal(d.pecas, d.conferentes, d.jornada)} fill="#1E3A8A" radius={[4, 4, 0, 0]} />
+                        <Bar name="Auxiliar" dataKey={(d) => calculateProdReal(d.pecas, d.auxiliares, d.jornada)} fill="#991B1B" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'input' && (
+              <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 duration-500 print-container">
+                <div className="bg-blue-950 p-6 md:p-8 text-white no-print text-center sm:text-left">
+                  <h2 className="font-black text-xs md:text-sm uppercase tracking-widest flex items-center justify-center sm:justify-start gap-2"><PlusCircle size={20} className="text-red-700"/> Lançamento Diário</h2>
+                </div>
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full text-left min-w-[800px]">
+                    <thead>
+                      <tr className="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100 bg-slate-50/50">
+                        <th className="py-5 px-6">Dia</th>
+                        <th className="py-5 px-4 text-center">Volume</th>
+                        <th className="py-5 px-4 text-center">Jornada</th>
+                        <th className="py-5 px-4 text-center text-blue-900">Qtd Conf.</th>
+                        <th className="py-5 px-4 text-center text-blue-800">Prod Conf.</th>
+                        <th className="py-5 px-4 text-center text-red-800">Qtd Aux.</th>
+                        <th className="py-5 px-4 text-center text-red-700">Prod Aux.</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {data.atual.map(item => {
+                        const prodConf = calculateProdReal(item.pecas, item.conferentes, item.jornada);
+                        const prodAux = calculateProdReal(item.pecas, item.auxiliares, item.jornada);
+                        return (
+                          <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="py-4 px-6 font-black text-[10px] uppercase text-slate-500">{item.dia}</td>
+                            <td className="py-4 px-4 min-w-[120px]">
+                              <input type="number" className="w-full p-3 bg-slate-100 border-none rounded-xl text-center font-black text-sm outline-none no-print" value={item.pecas || ''} onChange={(e) => updateData(item.id, 'pecas', e.target.value)} />
+                              <span className="hidden print:block text-center font-black">{item.pecas}</span>
+                            </td>
+                            <td className="py-4 px-4">
+                              <input type="number" step="0.5" className="w-full p-3 bg-amber-50 border-none rounded-xl text-center font-black text-amber-800 outline-none no-print" value={item.jornada || ''} onChange={(e) => updateData(item.id, 'jornada', e.target.value)} />
+                              <span className="hidden print:block text-center font-black">{item.jornada}h</span>
+                            </td>
+                            <td className="py-4 px-4">
+                              <input type="number" className="w-full p-3 bg-blue-50 border-none rounded-xl text-center font-black text-blue-900 outline-none no-print" value={item.conferentes || ''} onChange={(e) => updateData(item.id, 'conferentes', e.target.value)} />
+                              <span className="hidden print:block text-center font-black">{item.conferentes}</span>
+                            </td>
+                            <td className="py-4 px-4 text-center">
+                              <span className={`text-xs font-black ${parseFloat(prodConf) >= metas.CONFERENTE ? 'text-blue-900' : 'text-red-700'}`}>{prodConf}</span>
+                            </td>
+                            <td className="py-4 px-4">
+                              <input type="number" className="w-full p-3 bg-red-50 border-none rounded-xl text-center font-black text-red-900 outline-none no-print" value={item.auxiliares || ''} onChange={(e) => updateData(item.id, 'auxiliares', e.target.value)} />
+                              <span className="hidden print:block text-center font-black">{item.auxiliares}</span>
+                            </td>
+                            <td className="py-4 px-4 text-center">
+                              <span className={`text-xs font-black ${parseFloat(prodAux) >= metas.AUXILIAR ? 'text-red-800' : 'text-red-500'}`}>{prodAux}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'meta' && (
+              <div className="space-y-6 md:space-y-10 animate-in fade-in duration-500">
+                <div className="bg-slate-950 rounded-[2rem] p-6 md:p-10 shadow-2xl text-center">
+                  <h2 className="text-white font-black text-[10px] uppercase tracking-widest mb-8 flex items-center justify-center gap-3"><Settings2 className="text-red-700" size={18} /> Ajuste de Metas Operacionais</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:gap-10 max-w-2xl mx-auto">
+                    <div className="space-y-3">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Meta Conferente</label>
+                      <input 
+                        type="number" 
+                        value={metas.CONFERENTE}
+                        onChange={(e) => setMetas({...metas, CONFERENTE: parseFloat(e.target.value) || 0})}
+                        className="w-full bg-slate-900 border-none rounded-2xl py-5 px-6 font-black text-blue-700 text-2xl text-center outline-none focus:ring-2 focus:ring-blue-900 no-print"
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Meta Auxiliar</label>
+                      <input 
+                        type="number" 
+                        value={metas.AUXILIAR}
+                        onChange={(e) => setMetas({...metas, AUXILIAR: parseFloat(e.target.value) || 0})}
+                        className="w-full bg-slate-900 border-none rounded-2xl py-5 px-6 font-black text-red-800 text-2xl text-center outline-none focus:ring-2 focus:ring-red-900 no-print"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden overflow-x-auto">
+                    <table className="w-full text-left min-w-[700px]">
+                        <thead>
+                            <tr className="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
+                                <th className="py-5 px-8">Dia</th>
+                                <th className="py-5 px-4 text-center">Peças Previstas</th>
+                                <th className="py-5 px-4 text-center text-blue-900">Sugerido Conf</th>
+                                <th className="py-5 px-4 text-center text-red-800">Sugerido Aux</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {data.atual.map(item => (
+                                <tr key={item.id} className="hover:bg-slate-50">
+                                    <td className="py-5 px-8 font-black text-[10px] uppercase text-slate-500">{item.dia}</td>
+                                    <td className="py-5 px-4 text-center font-black text-sm">{item.pecas.toLocaleString()}</td>
+                                    <td className="py-5 px-4 text-center font-black text-lg text-blue-900 bg-blue-50/20">{calculateSugerido(item.pecas, item.jornada, metas.CONFERENTE)}</td>
+                                    <td className="py-5 px-4 text-center font-black text-lg text-red-800 bg-red-50/20">{calculateSugerido(item.pecas, item.jornada, metas.AUXILIAR)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'calculadora' && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="bg-white rounded-[3rem] p-8 md:p-12 border border-slate-200 shadow-2xl">
+                  <div className="flex flex-col md:flex-row items-center gap-10">
+                    <div className="flex-1 space-y-8 w-full">
+                      <div>
+                        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Simulador de <span className="text-red-800">Necessidade</span></h2>
+                        <p className="text-slate-500 text-sm mt-2">Planeie a sua equipa com base na meta e volume esperado.</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">Volume de Peças (Simulação)</label>
+                          <div className="relative">
+                            <Database className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                            <input 
+                              type="number" 
+                              value={calcData.pecas}
+                              onChange={(e) => setCalcData({...calcData, pecas: parseFloat(e.target.value) || 0})}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 font-black text-slate-800 text-xl outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">Jornada de Trabalho (Horas)</label>
+                          <div className="relative">
+                            <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                            <input 
+                              type="number" 
+                              step="0.5"
+                              value={calcData.jornada}
+                              onChange={(e) => setCalcData({...calcData, jornada: parseFloat(e.target.value) || 0})}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 font-black text-slate-800 text-xl outline-none focus:ring-4 focus:ring-amber-50 transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Campos de Meta agora Editáveis também aqui */}
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">Meta Conferente (pç/h)</label>
+                          <div className="relative">
+                            <Target className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400" size={18} />
+                            <input 
+                              type="number" 
+                              value={metas.CONFERENTE}
+                              onChange={(e) => setMetas({...metas, CONFERENTE: parseFloat(e.target.value) || 0})}
+                              className="w-full bg-slate-50 border border-blue-100 rounded-2xl py-4 pl-12 pr-4 font-black text-blue-900 text-xl outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">Meta Auxiliar (pç/h)</label>
+                          <div className="relative">
+                            <Target className="absolute left-4 top-1/2 -translate-y-1/2 text-red-400" size={18} />
+                            <input 
+                              type="number" 
+                              value={metas.AUXILIAR}
+                              onChange={(e) => setMetas({...metas, AUXILIAR: parseFloat(e.target.value) || 0})}
+                              className="w-full bg-slate-50 border border-red-100 rounded-2xl py-4 pl-12 pr-4 font-black text-red-800 text-xl outline-none focus:ring-4 focus:ring-red-50 transition-all"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100 grid grid-cols-2 gap-4 text-center">
+                          <div className="bg-blue-50/30 p-2 rounded-xl">
+                            <p className="text-[9px] font-black text-slate-400 uppercase">Ajuste em Tempo Real</p>
+                            <p className="text-lg font-black text-blue-900">{metas.CONFERENTE} pç/h</p>
+                          </div>
+                          <div className="bg-red-50/30 p-2 rounded-xl">
+                            <p className="text-[9px] font-black text-slate-400 uppercase">Ajuste em Tempo Real</p>
+                            <p className="text-lg font-black text-red-800">{metas.AUXILIAR} pç/h</p>
+                          </div>
+                      </div>
+                    </div>
+
+                    <div className="w-full md:w-[350px] space-y-4">
+                        <div className="bg-blue-900 p-8 rounded-[2.5rem] text-white shadow-2xl shadow-blue-900/30 text-center relative overflow-hidden group">
+                            <Users className="absolute -right-4 -top-4 opacity-10 group-hover:rotate-12 transition-transform" size={120} />
+                            <div className="relative z-10">
+                              <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-4 text-blue-200">Necessidade Conferentes</p>
+                              <p className="text-6xl font-black">{calculateSugerido(calcData.pecas, calcData.jornada, metas.CONFERENTE)}</p>
+                              <p className="text-[10px] font-bold uppercase mt-2 text-blue-200">Pessoas Recomendadas</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-red-800 p-8 rounded-[2.5rem] text-white shadow-2xl shadow-red-900/30 text-center relative overflow-hidden group">
+                            <Users className="absolute -right-4 -top-4 opacity-10 group-hover:-rotate-12 transition-transform" size={120} />
+                            <div className="relative z-10">
+                              <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-4 text-red-200">Necessidade Auxiliares</p>
+                              <p className="text-6xl font-black">{calculateSugerido(calcData.pecas, calcData.jornada, metas.AUXILIAR)}</p>
+                              <p className="text-[10px] font-bold uppercase mt-2 text-red-200">Pessoas Recomendadas</p>
+                            </div>
+                        </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'atual' && (
+              <div className="space-y-6 md:space-y-10 animate-in slide-in-from-right-4 duration-500">
+                <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden overflow-x-auto">
+                    <table className="w-full text-left min-w-[700px]">
+                        <thead>
+                            <tr className="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100 bg-slate-50">
+                                <th className="py-6 px-8">Dia</th>
+                                <th className="py-6 px-4 text-center">Volume</th>
+                                <th className="py-6 px-4 text-center">Prod. Conf</th>
+                                <th className="py-6 px-4 text-center">Prod. Aux</th>
+                                <th className="py-6 px-4 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {data.atual.map(item => {
+                                const prodConf = calculateProdReal(item.pecas, item.conferentes, item.jornada);
+                                const prodAux = calculateProdReal(item.pecas, item.auxiliares, item.jornada);
+                                const confOk = parseFloat(prodConf) >= metas.CONFERENTE;
+                                const auxOk = parseFloat(prodAux) >= metas.AUXILIAR;
+                                return (
+                                    <tr key={item.id} className="hover:bg-slate-50/50">
+                                        <td className="py-5 px-8 font-black text-[10px] uppercase text-slate-500">{item.dia}</td>
+                                        <td className="py-5 px-4 text-center font-bold text-slate-800">{item.pecas.toLocaleString()}</td>
+                                        <td className={`py-5 px-4 text-center font-black ${confOk ? 'text-blue-900' : 'text-red-500'}`}>{prodConf}</td>
+                                        <td className={`py-5 px-4 text-center font-black ${auxOk ? 'text-red-800' : 'text-red-500'}`}>{prodAux}</td>
+                                        <td className="py-5 px-4 text-center">
+                                            <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${confOk && auxOk ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                                                {confOk && auxOk ? 'Meta Atingida' : 'Abaixo da Meta'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+              </div>
+            )}
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default App;
+
+
 
