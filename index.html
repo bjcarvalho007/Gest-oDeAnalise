@@ -41,10 +41,27 @@
             box-shadow: 0 10px 15px -3px rgba(153, 27, 27, 0.3);
         }
 
+        .day-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .input-minimal {
+            background: #f1f5f9;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .input-minimal:focus {
+            background: white;
+            border-color: #1e3a8a;
+            box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.1);
+        }
+
         @media print {
             .no-print { display: none !important; }
             main { padding: 0 !important; width: 100% !important; }
-            .print-card { border: 1px solid #ddd !important; box-shadow: none !important; }
+            .grid { display: block !important; }
+            .day-card { break-inside: avoid; margin-bottom: 20px; border: 1px solid #ddd !important; }
         }
 
         input::-webkit-outer-spin-button,
@@ -57,7 +74,6 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // --- Componente de Ícone Dinâmico ---
         const Icon = ({ name, size = 20, className = "" }) => {
             useEffect(() => {
                 if (window.lucide) window.lucide.createIcons();
@@ -71,7 +87,6 @@
             const [activeTab, setActiveTab] = useState('dashboard');
             const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-            // --- ESTADOS DE DADOS (Baseado no seu código) ---
             const [metas, setMetas] = useState(() => {
                 const saved = localStorage.getItem('logistics_metas_v3');
                 return saved ? JSON.parse(saved) : { CONFERENTE: 220, AUXILIAR: 110 };
@@ -101,7 +116,6 @@
                 localStorage.setItem('logistics_metas_v3', JSON.stringify(metas));
             }, [data, metas]);
 
-            // --- LÓGICAS DE CÁLCULO ---
             const calculateProdReal = (pecas, qtdPessoas, jornada) => {
                 if (!qtdPessoas || !jornada || !pecas) return 0;
                 return Math.round(pecas / qtdPessoas / jornada);
@@ -132,17 +146,12 @@
                 }));
             };
 
-            // Totais para Dashboard
             const totalPecasSemana = data.atual.reduce((acc, curr) => acc + (Number(curr.pecas) || 0), 0);
             const diasAtivos = data.atual.filter(i => i.pecas > 0).length || 1;
             
             const mediaRealConf = Math.round(data.atual.filter(i => i.pecas > 0).reduce((acc, curr) => acc + calculateProdReal(curr.pecas, curr.conferentes, curr.jornada), 0) / diasAtivos);
             const mediaRealAux = Math.round(data.atual.filter(i => i.pecas > 0).reduce((acc, curr) => acc + calculateProdReal(curr.pecas, curr.auxiliares, curr.jornada), 0) / diasAtivos);
 
-            const mediaSugeridaConf = Math.ceil(data.atual.reduce((acc, curr) => acc + calculateSugerido(curr.pecas, curr.jornada, metas.CONFERENTE), 0) / diasAtivos);
-            const mediaSugeridaAux = Math.ceil(data.atual.reduce((acc, curr) => acc + calculateSugerido(curr.pecas, curr.jornada, metas.AUXILIAR), 0) / diasAtivos);
-
-            // Tela de Login
             if (!isAuth) {
                 return (
                     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
@@ -173,11 +182,11 @@
                 );
             }
 
-            const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } = window.Recharts || {};
+            const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area, Legend } = window.Recharts || {};
 
             return (
                 <div className="min-h-screen flex flex-col md:flex-row">
-                    {/* Sidebar */}
+                    {/* SIDEBAR */}
                     <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-950 text-white transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} no-print`}>
                         <div className="p-8 h-full flex flex-col">
                             <div className="flex items-center gap-3 mb-10">
@@ -188,10 +197,9 @@
                             <nav className="flex-1 space-y-2">
                                 {[
                                     { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
-                                    { id: 'input', label: 'Lançar Dados', icon: 'plus-circle' },
+                                    { id: 'input', label: 'Gestão Operacional', icon: 'zap' },
                                     { id: 'meta', label: 'Análise de Metas', icon: 'target' },
-                                    { id: 'calculadora', label: 'Calculadora HC', icon: 'calculator' },
-                                    { id: 'atual', label: 'Histórico', icon: 'calendar-days' }
+                                    { id: 'calculadora', label: 'Calculadora HC', icon: 'calculator' }
                                 ].map(item => (
                                     <button 
                                         key={item.id}
@@ -214,9 +222,8 @@
                         </div>
                     </aside>
 
-                    {/* Main Content */}
                     <main className="flex-1 min-w-0 overflow-y-auto max-h-screen bg-[#f8fafc]">
-                        {/* Mobile Header */}
+                        {/* MOBILE HEADER */}
                         <div className="md:hidden bg-slate-950 text-white p-4 flex justify-between items-center no-print">
                             <span className="font-black text-sm uppercase tracking-tighter">Gestão Operacional</span>
                             <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 bg-slate-900 rounded-lg">
@@ -229,144 +236,246 @@
                                 <div className="text-center md:text-left">
                                     <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">
                                         {activeTab === 'dashboard' ? 'Sumário Executivo' : 
-                                         activeTab === 'input' ? 'Lançamento Diário' : 
-                                         activeTab === 'meta' ? 'Planeamento de Metas' : 
-                                         activeTab === 'calculadora' ? 'Simulador Headcount' : 'Histórico de Atividade'}
+                                         activeTab === 'input' ? 'Painel de Operações' : 
+                                         activeTab === 'meta' ? 'Planeamento de Metas' : 'Simulador Headcount'}
                                     </h1>
-                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">CDTO • Logística de Desenvolvimento</p>
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">CDTO • Sistema de Alta Performance</p>
                                 </div>
                                 <button onClick={() => window.print()} className="bg-blue-900 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase flex items-center gap-2 hover:bg-red-800 transition-all shadow-lg no-print">
-                                    <Icon name="printer" size={16} /> Exportar Relatório PDF
+                                    <Icon name="printer" size={16} /> Exportar Relatório
                                 </button>
                             </header>
 
-                            {/* --- DASHBOARD --- */}
+                            {/* --- DASHBOARD DETALHADO --- */}
                             {activeTab === 'dashboard' && (
                                 <div className="space-y-8 animate-in fade-in duration-500">
-                                    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm text-center relative overflow-hidden group">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 relative z-10">Volume Total da Semana</p>
-                                        <p className="text-5xl font-black text-slate-900 relative z-10">{totalPecasSemana.toLocaleString()} <span className="text-xs text-slate-400">PÇS</span></p>
-                                        <Icon name="database" size={80} className="absolute -right-4 -bottom-4 text-slate-50 group-hover:text-slate-100 transition-all" />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {/* Card Conferente */}
-                                        <div className="bg-white p-8 rounded-[2.5rem] border-l-8 border-l-blue-900 border border-slate-200 shadow-sm">
-                                            <div className="flex justify-between items-start mb-6">
-                                                <div>
-                                                    <p className="text-[10px] font-black text-blue-900 uppercase tracking-widest">Conferente</p>
-                                                    <h2 className="text-xl font-black text-slate-800">Performance</h2>
-                                                </div>
-                                                <div className="bg-blue-50 p-3 rounded-2xl text-blue-900"><Icon name="users" /></div>
+                                    {/* Principais Métricas em Cards Slim */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Volume Total</p>
+                                            <div className="flex items-end justify-between">
+                                                <h3 className="text-3xl font-black text-slate-900">{totalPecasSemana.toLocaleString()}</h3>
+                                                <span className="text-[10px] font-bold text-slate-400 mb-1">PÇS</span>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="bg-slate-50 p-4 rounded-2xl text-center">
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase">Meta</p>
-                                                    <p className="text-2xl font-black text-blue-900">{metas.CONFERENTE}</p>
-                                                </div>
-                                                <div className="bg-blue-900 p-4 rounded-2xl text-center text-white shadow-lg shadow-blue-900/20">
-                                                    <p className="text-[9px] font-black opacity-60 uppercase">Real</p>
-                                                    <p className="text-2xl font-black">{mediaRealConf}</p>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm border-l-4 border-l-blue-900">
+                                            <p className="text-[10px] font-black text-blue-900 uppercase mb-1">Prod. Conferente</p>
+                                            <div className="flex items-end justify-between">
+                                                <h3 className="text-3xl font-black text-slate-900">{mediaRealConf}</h3>
+                                                <div className={`px-2 py-1 rounded-lg text-[9px] font-black ${mediaRealConf >= metas.CONFERENTE ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {Math.round((mediaRealConf/metas.CONFERENTE)*100)}%
                                                 </div>
                                             </div>
                                         </div>
-
-                                        {/* Card Auxiliar */}
-                                        <div className="bg-white p-8 rounded-[2.5rem] border-l-8 border-l-red-800 border border-slate-200 shadow-sm">
-                                            <div className="flex justify-between items-start mb-6">
-                                                <div>
-                                                    <p className="text-[10px] font-black text-red-800 uppercase tracking-widest">Auxiliar</p>
-                                                    <h2 className="text-xl font-black text-slate-800">Performance</h2>
+                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm border-l-4 border-l-red-800">
+                                            <p className="text-[10px] font-black text-red-800 uppercase mb-1">Prod. Auxiliar</p>
+                                            <div className="flex items-end justify-between">
+                                                <h3 className="text-3xl font-black text-slate-900">{mediaRealAux}</h3>
+                                                <div className={`px-2 py-1 rounded-lg text-[9px] font-black ${mediaRealAux >= metas.AUXILIAR ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {Math.round((mediaRealAux/metas.AUXILIAR)*100)}%
                                                 </div>
-                                                <div className="bg-red-50 p-3 rounded-2xl text-red-800"><Icon name="users" /></div>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="bg-slate-50 p-4 rounded-2xl text-center">
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase">Meta</p>
-                                                    <p className="text-2xl font-black text-red-800">{metas.AUXILIAR}</p>
-                                                </div>
-                                                <div className="bg-red-800 p-4 rounded-2xl text-center text-white shadow-lg shadow-red-900/20">
-                                                    <p className="text-[9px] font-black opacity-60 uppercase">Real</p>
-                                                    <p className="text-2xl font-black">{mediaRealAux}</p>
-                                                </div>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Dias Registados</p>
+                                            <div className="flex items-end justify-between">
+                                                <h3 className="text-3xl font-black text-slate-900">{diasAtivos}</h3>
+                                                <Icon name="calendar" size={20} className="text-slate-200 mb-1" />
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Gráfico */}
-                                    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
-                                        <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
-                                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                                                <Icon name="trending-up" className="text-blue-900"/> Performance Diária vs Metas
-                                            </h3>
+                                    {/* Gráfico de Evolução Semanal */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                                            <div className="flex justify-between items-center mb-8">
+                                                <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                                    <Icon name="bar-chart-2" className="text-blue-900"/> Desempenho Operacional vs Metas
+                                                </h3>
+                                            </div>
+                                            <div className="h-[300px]">
+                                                {BarChart && (
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <BarChart data={data.atual} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                                                            <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{fontSize: 9, fontWeight: 700}} />
+                                                            <YAxis axisLine={false} tickLine={false} tick={{fontSize: 9}} />
+                                                            <Tooltip 
+                                                                cursor={{fill: '#f8fafc'}}
+                                                                contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
+                                                            />
+                                                            <Legend wrapperStyle={{fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', paddingTop: '20px'}} />
+                                                            <Bar name="Real Conf." dataKey={(d) => calculateProdReal(d.pecas, d.conferentes, d.jornada)} fill="#1E3A8A" radius={[4, 4, 0, 0]} />
+                                                            <Bar name="Real Aux." dataKey={(d) => calculateProdReal(d.pecas, d.auxiliares, d.jornada)} fill="#991B1B" radius={[4, 4, 0, 0]} />
+                                                        </BarChart>
+                                                    </ResponsiveContainer>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="h-[350px] w-full">
-                                            {BarChart ? (
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <BarChart data={data.atual} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                                                        <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{fontSize: 9, fontWeight: 700}} />
-                                                        <YAxis axisLine={false} tickLine={false} tick={{fontSize: 9}} />
-                                                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
-                                                        <Bar name="Conferente" dataKey={(d) => calculateProdReal(d.pecas, d.conferentes, d.jornada)} fill="#1E3A8A" radius={[4, 4, 0, 0]} />
-                                                        <Bar name="Auxiliar" dataKey={(d) => calculateProdReal(d.pecas, d.auxiliares, d.jornada)} fill="#991B1B" radius={[4, 4, 0, 0]} />
-                                                    </BarChart>
-                                                </ResponsiveContainer>
-                                            ) : "A carregar..."}
+
+                                        {/* Tabela de Detalhes no Dashboard */}
+                                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-6">Status por Dia</h3>
+                                            <div className="space-y-4">
+                                                {data.atual.map(dia => {
+                                                    const prod = calculateProdReal(dia.pecas, dia.conferentes, dia.jornada);
+                                                    const isOk = prod >= metas.CONFERENTE;
+                                                    const isZero = dia.pecas === 0;
+                                                    
+                                                    return (
+                                                        <div key={dia.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50">
+                                                            <div>
+                                                                <p className="text-[10px] font-black text-slate-800 uppercase">{dia.dia.split('-')[0]}</p>
+                                                                <p className="text-[9px] font-bold text-slate-400">{dia.pecas.toLocaleString()} PÇS</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className={`text-sm font-black ${isZero ? 'text-slate-300' : (isOk ? 'text-green-600' : 'text-red-600')}`}>
+                                                                    {isZero ? '--' : prod}
+                                                                </p>
+                                                                {!isZero && <p className="text-[8px] font-bold text-slate-400">PÇ/H</p>}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Rodapé do Dashboard com Sugestões de Headcount para o Volume Médio */}
+                                    <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white">
+                                        <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+                                            <div className="text-center md:text-left">
+                                                <h3 className="text-xl font-black uppercase mb-2">Simulação Rápida</h3>
+                                                <p className="text-slate-400 text-xs font-medium">Baseado na média semanal atual de volume por dia.</p>
+                                            </div>
+                                            <div className="flex gap-4">
+                                                <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 min-w-[140px] text-center">
+                                                    <p className="text-[9px] font-black text-blue-400 uppercase mb-1">Conf. Necessários</p>
+                                                    <p className="text-3xl font-black">{calculateSugerido(totalPecasSemana/diasAtivos, 9, metas.CONFERENTE)}</p>
+                                                </div>
+                                                <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 min-w-[140px] text-center">
+                                                    <p className="text-[9px] font-black text-red-400 uppercase mb-1">Aux. Necessários</p>
+                                                    <p className="text-3xl font-black">{calculateSugerido(totalPecasSemana/diasAtivos, 9, metas.AUXILIAR)}</p>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            {/* --- LANÇAMENTO --- */}
+                            {/* --- GESTÃO OPERACIONAL (CARDS) --- */}
                             {activeTab === 'input' && (
-                                <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-                                    <div className="bg-slate-900 p-6 text-white text-center sm:text-left">
-                                        <h2 className="font-black text-xs uppercase tracking-widest flex items-center gap-2"><Icon name="plus-circle" className="text-red-600"/> Entrada de Dados Diária</h2>
+                                <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 no-print">
+                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 flex items-center gap-5">
+                                            <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-900"><Icon name="layers" size={24}/></div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase">Volume Semanal</p>
+                                                <p className="text-xl font-black">{totalPecasSemana.toLocaleString()}</p>
+                                            </div>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 flex items-center gap-5">
+                                            <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center text-red-900"><Icon name="activity" size={24}/></div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase">Média Real (H)</p>
+                                                <p className="text-xl font-black">{mediaRealConf} <span className="text-[10px] text-slate-300">PÇ/H</span></p>
+                                            </div>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 flex items-center gap-5">
+                                            <div className="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-900"><Icon name="calendar-check" size={24}/></div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase">Dias Ativos</p>
+                                                <p className="text-xl font-black">{diasAtivos} <span className="text-[10px] text-slate-300">DIAS</span></p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left min-w-[800px]">
-                                            <thead>
-                                                <tr className="text-[10px] font-black text-slate-400 uppercase bg-slate-50 border-b">
-                                                    <th className="p-6">Dia</th>
-                                                    <th className="p-4 text-center">Volume (PÇS)</th>
-                                                    <th className="p-4 text-center">Horas/Dia</th>
-                                                    <th className="p-4 text-center text-blue-900">Nº Conf.</th>
-                                                    <th className="p-4 text-center text-red-800">Nº Aux.</th>
-                                                    <th className="p-4 text-center">Prod. Conf</th>
-                                                    <th className="p-4 text-center">Prod. Aux</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-50">
-                                                {data.atual.map(item => {
-                                                    const prodC = calculateProdReal(item.pecas, item.conferentes, item.jornada);
-                                                    const prodA = calculateProdReal(item.pecas, item.auxiliares, item.jornada);
-                                                    return (
-                                                        <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                                                            <td className="p-6 font-black text-[10px] uppercase text-slate-500">{item.dia}</td>
-                                                            <td className="p-4">
-                                                                <input type="number" className="w-full p-3 bg-slate-100 rounded-xl text-center font-black outline-none focus:ring-2 focus:ring-blue-900 no-print" value={item.pecas || ''} onChange={(e) => updateDataField(item.id, 'pecas', e.target.value)} />
-                                                                <span className="hidden print:block text-center font-black">{item.pecas}</span>
-                                                            </td>
-                                                            <td className="p-4">
-                                                                <input type="number" step="0.5" className="w-full p-3 bg-amber-50 rounded-xl text-center font-black text-amber-800 outline-none no-print" value={item.jornada || ''} onChange={(e) => updateDataField(item.id, 'jornada', e.target.value)} />
-                                                                <span className="hidden print:block text-center font-black">{item.jornada}h</span>
-                                                            </td>
-                                                            <td className="p-4">
-                                                                <input type="number" className="w-full p-3 bg-blue-50 rounded-xl text-center font-black text-blue-900 outline-none no-print" value={item.conferentes || ''} onChange={(e) => updateDataField(item.id, 'conferentes', e.target.value)} />
-                                                                <span className="hidden print:block text-center font-black">{item.conferentes}</span>
-                                                            </td>
-                                                            <td className="p-4">
-                                                                <input type="number" className="w-full p-3 bg-red-50 rounded-xl text-center font-black text-red-900 outline-none no-print" value={item.auxiliares || ''} onChange={(e) => updateDataField(item.id, 'auxiliares', e.target.value)} />
-                                                                <span className="hidden print:block text-center font-black">{item.auxiliares}</span>
-                                                            </td>
-                                                            <td className={`p-4 text-center font-black text-sm ${prodC >= metas.CONFERENTE ? 'text-blue-900' : 'text-slate-400'}`}>{prodC}</td>
-                                                            <td className={`p-4 text-center font-black text-sm ${prodA >= metas.AUXILIAR ? 'text-red-800' : 'text-slate-400'}`}>{prodA}</td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
+
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                                        {data.atual.map(item => {
+                                            const prodC = calculateProdReal(item.pecas, item.conferentes, item.jornada);
+                                            const prodA = calculateProdReal(item.pecas, item.auxiliares, item.jornada);
+                                            const hasData = item.pecas > 0;
+                                            const confOk = prodC >= metas.CONFERENTE;
+                                            const auxOk = prodA >= metas.AUXILIAR;
+                                            const allOk = confOk && auxOk;
+
+                                            return (
+                                                <div key={item.id} className={`day-card bg-white rounded-[2.5rem] border overflow-hidden shadow-sm relative ${hasData ? (allOk ? 'border-green-200' : 'border-red-200') : 'border-slate-200 hover:shadow-md'}`}>
+                                                    <div className={`p-6 flex justify-between items-center ${hasData ? (allOk ? 'bg-green-50' : 'bg-red-50') : 'bg-slate-50'}`}>
+                                                        <div>
+                                                            <h3 className="font-black text-sm uppercase text-slate-800">{item.dia}</h3>
+                                                            {hasData && (
+                                                                <span className={`text-[9px] font-black uppercase ${allOk ? 'text-green-600' : 'text-red-600'}`}>
+                                                                    {allOk ? 'Meta Atingida' : 'Abaixo da Meta'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${hasData ? (allOk ? 'bg-green-600 text-white' : 'bg-red-600 text-white') : 'bg-slate-200 text-slate-400'}`}>
+                                                            <Icon name={hasData ? (allOk ? "check" : "alert-triangle") : "circle"} size={20} />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="p-6 space-y-4">
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div className="space-y-1">
+                                                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Pecas (Volume)</label>
+                                                                <input 
+                                                                    type="number" 
+                                                                    className="w-full p-3 input-minimal rounded-xl font-black text-center text-slate-700"
+                                                                    value={item.pecas || ''} 
+                                                                    onChange={(e) => updateDataField(item.id, 'pecas', e.target.value)} 
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Jornada (Horas)</label>
+                                                                <input 
+                                                                    type="number" 
+                                                                    step="0.5"
+                                                                    className="w-full p-3 input-minimal rounded-xl font-black text-center text-amber-700"
+                                                                    value={item.jornada || ''} 
+                                                                    onChange={(e) => updateDataField(item.id, 'jornada', e.target.value)} 
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div className="space-y-1">
+                                                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">HC Conferentes</label>
+                                                                <input 
+                                                                    type="number" 
+                                                                    className="w-full p-3 input-minimal rounded-xl font-black text-center text-blue-900"
+                                                                    value={item.conferentes || ''} 
+                                                                    onChange={(e) => updateDataField(item.id, 'conferentes', e.target.value)} 
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">HC Auxiliares</label>
+                                                                <input 
+                                                                    type="number" 
+                                                                    className="w-full p-3 input-minimal rounded-xl font-black text-center text-red-800"
+                                                                    value={item.auxiliares || ''} 
+                                                                    onChange={(e) => updateDataField(item.id, 'auxiliares', e.target.value)} 
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {hasData && (
+                                                            <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                                                                <div className="text-center flex-1">
+                                                                    <p className="text-[8px] font-bold text-slate-400 uppercase mb-1">Real Conf.</p>
+                                                                    <p className={`text-lg font-black ${confOk ? 'text-blue-900' : 'text-red-500'}`}>{prodC}</p>
+                                                                </div>
+                                                                <div className="w-px h-8 bg-slate-100"></div>
+                                                                <div className="text-center flex-1">
+                                                                    <p className="text-[8px] font-bold text-slate-400 uppercase mb-1">Real Aux.</p>
+                                                                    <p className={`text-lg font-black ${auxOk ? 'text-red-900' : 'text-red-500'}`}>{prodA}</p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
@@ -402,45 +511,6 @@
                                 </div>
                             )}
 
-                            {/* --- HISTÓRICO --- */}
-                            {activeTab === 'atual' && (
-                                <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden animate-in slide-in-from-right-4 duration-500">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left min-w-[700px]">
-                                            <thead>
-                                                <tr className="text-[10px] font-black text-slate-400 uppercase bg-slate-50 border-b">
-                                                    <th className="p-6">Dia Útil</th>
-                                                    <th className="p-6 text-center">Volume Realizado</th>
-                                                    <th className="p-6 text-center">Prod. Conferente</th>
-                                                    <th className="p-6 text-center">Prod. Auxiliar</th>
-                                                    <th className="p-6 text-center">Status Global</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {data.atual.map(item => {
-                                                    const prodC = calculateProdReal(item.pecas, item.conferentes, item.jornada);
-                                                    const prodA = calculateProdReal(item.pecas, item.auxiliares, item.jornada);
-                                                    const ok = prodC >= metas.CONFERENTE && prodA >= metas.AUXILIAR;
-                                                    return (
-                                                        <tr key={item.id} className="hover:bg-slate-50/50">
-                                                            <td className="p-5 px-8 font-black text-[10px] uppercase text-slate-500">{item.dia}</td>
-                                                            <td className="p-5 text-center font-bold">{item.pecas.toLocaleString()}</td>
-                                                            <td className={`p-5 text-center font-black ${prodC >= metas.CONFERENTE ? 'text-blue-900' : 'text-red-500'}`}>{prodC}</td>
-                                                            <td className={`p-5 text-center font-black ${prodA >= metas.AUXILIAR ? 'text-red-800' : 'text-red-500'}`}>{prodA}</td>
-                                                            <td className="p-5 text-center">
-                                                                <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${ok ? 'bg-green-100 text-green-700' : (item.pecas > 0 ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-400')}`}>
-                                                                    {item.pecas > 0 ? (ok ? 'Meta Atingida' : 'Abaixo da Meta') : 'Sem Dados'}
-                                                                </span>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-
                             {/* --- CONFIGURAÇÃO DE METAS --- */}
                             {activeTab === 'meta' && (
                                 <div className="max-w-2xl mx-auto animate-in fade-in duration-500">
@@ -469,7 +539,6 @@
             );
         };
 
-        // Inicialização Segura
         const init = () => {
             const rootElement = document.getElementById('root');
             if (rootElement) {
@@ -488,5 +557,4 @@
     </script>
 </body>
 </html>
-
 
