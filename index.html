@@ -3,46 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Desenvolvimento - Kelly Studio</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Gestão de Desenvolvimento</title>
     
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    
-    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
     <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        /* Ajuste para esconder setas de inputs numéricos */
-        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        
+        /* Ocultar elementos na impressão */
+        @media print {
+            .no-print { display: none !important; }
+            main { padding: 0 !important; margin: 0 !important; }
+            .print-card { box-shadow: none !important; border: 1px solid #ddd !important; }
+        }
+
+        /* Esconder setas do input number */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     </style>
 </head>
-<body>
+<body class="bg-[#F8FAFC]">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
         const { 
             BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell 
         } = Recharts;
 
-        // Mapeamento dos ícones do Lucide para uso global
-        const { 
-            LayoutDashboard, Database, ArrowRightLeft, FileText, PlusCircle, 
-            User, LogOut, Target, RotateCcw, Settings2, CalendarDays, 
-            TrendingUp, Users, Clock, Printer, Menu, X, Calculator 
-        } = lucide;
-
-        // Componente auxiliar para renderizar ícones
-        const LucideIcon = ({ icon: IconComponent, size = 20, className = "", strokeWidth = 2 }) => {
-            return <IconComponent size={size} className={className} strokeWidth={strokeWidth} />;
+        // Componente de Ícone Dinâmico
+        const LucideIcon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => { lucide.createIcons(); }, []);
+            return <i data-lucide={name} className={className} style={{width: size, height: size}}></i>;
         };
 
         const App = () => {
@@ -51,113 +49,66 @@
             const [loginError, setLoginError] = useState('');
             const [activeTab, setActiveTab] = useState('dashboard');
             const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
             const [calcData, setCalcData] = useState({ pecas: 5000, jornada: 9 });
 
+            // Metas Persistentes
             const [metas, setMetas] = useState(() => {
-                const savedMetas = localStorage.getItem('logistics_metas_v3');
-                if (savedMetas) return JSON.parse(savedMetas);
-                return { CONFERENTE: 220, AUXILIAR: 110 };
+                const saved = localStorage.getItem('gestao_metas_v1');
+                return saved ? JSON.parse(saved) : { CONFERENTE: 220, AUXILIAR: 110 };
             });
 
-            const generateWeeklyStructure = () => {
-                const dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-                return dias.map((dia, index) => ({
-                    id: `fixo-${index}`,
-                    dia: dia,
-                    pecas: 0,
-                    conferentes: 0,
-                    auxiliares: 0,
-                    jornada: 9,
-                }));
-            };
-
+            // Dados Semanais
             const [data, setData] = useState(() => {
-                const savedData = localStorage.getItem('logistics_data_v3');
-                if (savedData) return JSON.parse(savedData);
-                return { atual: generateWeeklyStructure() };
+                const saved = localStorage.getItem('gestao_dados_v1');
+                if (saved) return JSON.parse(saved);
+                const dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+                return { 
+                    atual: dias.map((dia, i) => ({ id: i, dia, pecas: 0, conferentes: 0, auxiliares: 0, jornada: 9 })) 
+                };
             });
 
             useEffect(() => {
-                localStorage.setItem('logistics_data_v3', JSON.stringify(data));
-                localStorage.setItem('logistics_metas_v3', JSON.stringify(metas));
-            }, [data, metas]);
+                localStorage.setItem('gestao_dados_v1', JSON.stringify(data));
+                localStorage.setItem('gestao_metas_v1', JSON.stringify(metas));
+                lucide.createIcons();
+            }, [data, metas, isAuthenticated, activeTab]);
+
+            // Cálculos
+            const calculateProdReal = (pecas, qtd, jornada) => (qtd > 0 && jornada > 0) ? (pecas / qtd / jornada).toFixed(0) : 0;
+            const calculateSugerido = (pecas, jornada, meta) => (pecas > 0 && jornada > 0) ? Math.ceil(pecas / (jornada * meta)) : 0;
 
             const handleLogin = (e) => {
                 e.preventDefault();
-                if (loginUser.toUpperCase() === 'CDTO') {
-                    setIsAuthenticated(true);
-                    setLoginError('');
-                } else {
-                    setLoginError('Utilizador não autorizado.');
-                }
+                if (loginUser.toUpperCase() === 'CDTO') setIsAuthenticated(true);
+                else setLoginError('Acesso negado');
             };
 
-            const handleLogout = () => {
-                setIsAuthenticated(false);
-                setLoginUser('');
-            };
-
-            const resetWeek = () => {
-                if (window.confirm('Deseja limpar todos os dados e reiniciar a semana?')) {
-                    setData({ atual: generateWeeklyStructure() });
-                }
-            };
-
-            const updateData = (id, field, value) => {
-                const val = field === 'dia' ? value : (value === "" ? 0 : parseFloat(value));
-                setData(prev => ({
-                    ...prev,
-                    atual: prev.atual.map(item => item.id === id ? { ...item, [field]: val } : item)
-                }));
-            };
-
-            const calculateProdReal = (pecas, qtdPessoas, jornada) => {
-                if (qtdPessoas <= 0 || jornada <= 0 || pecas <= 0) return 0;
-                return (pecas / qtdPessoas / jornada).toFixed(0);
-            };
-
-            const calculateSugerido = (pecas, jornada, meta) => {
-                if (pecas <= 0 || jornada <= 0 || meta <= 0) return 0;
-                return Math.ceil(pecas / (jornada * meta));
-            };
-
-            const navItems = [
-                { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-                { id: 'input', label: 'Lançar Dados', icon: PlusCircle },
-                { id: 'meta', label: 'Análise de Metas', icon: Target },
-                { id: 'calculadora', label: 'Calculadora HC', icon: Calculator }, 
-                { id: 'atual', label: 'Histórico', icon: CalendarDays },
-            ];
-
-            const totalPecasSemana = data.atual.reduce((acc, curr) => acc + curr.pecas, 0);
-            const diasAtivos = data.atual.filter(i => i.pecas > 0).length || 1;
-            const mediaRealConf = (data.atual.filter(i => i.pecas > 0).reduce((acc, curr) => acc + parseFloat(calculateProdReal(curr.pecas, curr.conferentes, curr.jornada)), 0) / diasAtivos).toFixed(0);
-            const mediaRealAux = (data.atual.filter(i => i.pecas > 0).reduce((acc, curr) => acc + parseFloat(calculateProdReal(curr.pecas, curr.auxiliares, curr.jornada)), 0) / diasAtivos).toFixed(0);
-            const mediaSugeridaConf = Math.ceil(data.atual.reduce((acc, curr) => acc + calculateSugerido(curr.pecas, curr.jornada, metas.CONFERENTE), 0) / diasAtivos);
-            const mediaSugeridaAux = Math.ceil(data.atual.reduce((acc, curr) => acc + calculateSugerido(curr.pecas, curr.jornada, metas.AUXILIAR), 0) / diasAtivos);
+            const totalPecas = data.atual.reduce((acc, curr) => acc + curr.pecas, 0);
 
             if (!isAuthenticated) {
                 return (
-                    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-                        <div className="w-full max-w-md bg-white rounded-[2rem] p-10 shadow-2xl">
+                    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+                        <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-md shadow-2xl">
                             <div className="flex flex-col items-center mb-10">
-                                <div className="w-16 h-16 bg-red-800 rounded-2xl flex items-center justify-center text-white mb-6">
-                                    <LucideIcon icon={ArrowRightLeft} size={32} strokeWidth={2.5} />
+                                <div className="bg-red-800 p-4 rounded-2xl text-white mb-4">
+                                    <LucideIcon name="arrow-right-left" size={32} />
                                 </div>
-                                <h1 className="text-3xl font-black text-slate-900">Kelly <span className="text-blue-900">Studio</span></h1>
-                                <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-2">Gestão de Desenvolvimento</p>
+                                <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">
+                                    Gestão <span className="text-blue-900">De Desenvolvimento</span>
+                                </h1>
                             </div>
                             <form onSubmit={handleLogin} className="space-y-6">
-                                <input 
-                                    type="text" 
-                                    value={loginUser}
-                                    onChange={(e) => setLoginUser(e.target.value)}
-                                    placeholder="Utilizador (CDTO)"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 font-bold outline-none focus:ring-4 focus:ring-red-50"
-                                />
-                                {loginError && <p className="text-red-800 text-[10px] font-bold text-center uppercase">{loginError}</p>}
-                                <button type="submit" className="w-full bg-blue-800 text-white py-4 rounded-2xl font-black uppercase shadow-xl hover:bg-red-800 transition-all">Entrar</button>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 ml-1">Utilizador</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Digite CDTO" 
+                                        className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl font-bold outline-none focus:border-blue-900 transition-all"
+                                        onChange={(e) => setLoginUser(e.target.value)}
+                                    />
+                                </div>
+                                {loginError && <p className="text-red-600 text-xs font-black text-center uppercase tracking-widest">{loginError}</p>}
+                                <button className="w-full bg-blue-900 text-white py-5 rounded-2xl font-black uppercase shadow-lg hover:bg-blue-800 active:scale-95 transition-all">Entrar</button>
                             </form>
                         </div>
                     </div>
@@ -165,128 +116,144 @@
             }
 
             return (
-                <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row text-slate-900 overflow-x-hidden">
-                    <style>{`@media print { .no-print { display: none !important; } }`}</style>
-                    
-                    {/* Top Bar Mobile */}
-                    <div className="md:hidden flex items-center justify-between p-4 bg-slate-950 text-white no-print sticky top-0 z-[60]">
-                        <span className="font-bold">Kelly Studio</span>
-                        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 bg-slate-900 rounded-lg">
-                            <LucideIcon icon={isMobileMenuOpen ? X : Menu} size={24}/>
+                <div className="min-h-screen flex flex-col md:flex-row">
+                    {/* Sidebar Móvel Topo */}
+                    <div className="md:hidden bg-slate-950 p-4 flex justify-between items-center no-print">
+                        <div className="text-white font-black text-sm uppercase">Gestão Operacional</div>
+                        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-white p-2">
+                            <LucideIcon name={isMobileMenuOpen ? "x" : "menu"} />
                         </button>
                     </div>
 
-                    {/* Sidebar */}
-                    <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-950 transform transition-transform md:relative md:translate-x-0 no-print ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                        <div className="h-full flex flex-col p-6">
-                            <div className="text-white font-black text-xl mb-10 flex items-center gap-3">
-                                <div className="p-2 bg-red-800 rounded-lg"><LucideIcon icon={ArrowRightLeft} size={20} /></div>
-                                <span>Kelly Studio</span>
+                    {/* Sidebar Principal */}
+                    <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-950 transition-transform md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} no-print`}>
+                        <div className="p-8 h-full flex flex-col">
+                            <div className="flex items-center gap-3 mb-12 text-white">
+                                <div className="bg-red-800 p-2 rounded-lg"><LucideIcon name="arrow-right-left" /></div>
+                                <span className="font-black text-lg tracking-tighter">GESTÃO</span>
                             </div>
-                            <nav className="flex-1 space-y-2">
-                                {navItems.map((item) => (
-                                    <button
+                            
+                            <nav className="flex-1 space-y-3">
+                                {[
+                                    { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
+                                    { id: 'input', label: 'Lançar Dados', icon: 'plus-circle' },
+                                    { id: 'meta', label: 'Metas', icon: 'target' },
+                                    { id: 'calculadora', label: 'Calculadora HC', icon: 'calculator' }
+                                ].map(item => (
+                                    <button 
                                         key={item.id}
-                                        onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }}
-                                        className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-bold transition-all ${activeTab === item.id ? 'bg-red-800 text-white' : 'text-slate-500 hover:text-white'}`}
+                                        onClick={() => {setActiveTab(item.id); setIsMobileMenuOpen(false);}}
+                                        className={`w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-sm transition-all ${activeTab === item.id ? 'bg-red-800 text-white shadow-xl shadow-red-900/20' : 'text-slate-500 hover:bg-slate-900 hover:text-white'}`}
                                     >
-                                        <LucideIcon icon={item.icon} size={20} />
-                                        {item.label}
+                                        <LucideIcon name={item.icon} /> {item.label}
                                     </button>
                                 ))}
                             </nav>
-                            <div className="mt-auto pt-6 border-t border-slate-800 space-y-2">
-                                <button onClick={resetWeek} className="w-full flex items-center gap-3 px-5 py-3 rounded-xl text-[10px] font-black uppercase text-amber-600 hover:bg-amber-500/10 transition-all">
-                                    <LucideIcon icon={RotateCcw} size={16} /> Limpar Dados
-                                </button>
-                                <button onClick={handleLogout} className="w-full flex items-center gap-3 px-5 py-3 rounded-xl text-[10px] font-black uppercase text-red-500 hover:bg-red-500/10 transition-all">
-                                    <LucideIcon icon={LogOut} size={16} /> Sair
-                                </button>
-                            </div>
+
+                            <button onClick={() => setIsAuthenticated(false)} className="mt-auto flex items-center gap-3 p-4 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-500/10 rounded-xl transition-all">
+                                <LucideIcon name="log-out" size={16} /> Sair do Sistema
+                            </button>
                         </div>
                     </aside>
 
-                    <main className="flex-1 p-4 md:p-12 max-w-[1400px] mx-auto w-full">
-                        <header className="mb-12 text-center flex flex-col items-center">
-                            <h1 className="text-3xl font-black uppercase tracking-tight">{navItems.find(n => n.id === activeTab)?.label}</h1>
-                            <button onClick={() => window.print()} className="mt-6 no-print bg-blue-900 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase shadow-lg hover:bg-red-800 transition-all">
-                                <LucideIcon icon={Printer} size={16} className="inline mr-2" /> Exportar Relatório PDF
+                    {/* Área de Conteúdo */}
+                    <main className="flex-1 p-6 md:p-12 max-w-[1200px] mx-auto w-full">
+                        <header className="mb-10 text-center md:text-left flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div>
+                                <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">{activeTab}</h1>
+                                <p className="text-slate-400 text-sm font-medium italic">Operação Logística • CDTO</p>
+                            </div>
+                            <button onClick={() => window.print()} className="bg-blue-900 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg no-print">
+                                <LucideIcon name="printer" size={16} /> PDF Relatório
                             </button>
                         </header>
 
                         {activeTab === 'dashboard' && (
-                            <div className="space-y-10 animate-in fade-in duration-500">
-                                <div className="bg-white p-8 rounded-[2rem] border shadow-sm text-center relative overflow-hidden group">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Volume Total da Semana</p>
-                                    <p className="text-5xl font-black text-slate-900">{totalPecasSemana.toLocaleString()} <span className="text-xs">pçs</span></p>
-                                    <LucideIcon icon={Database} size={60} className="absolute -right-2 -bottom-2 text-slate-50 group-hover:text-slate-100 transition-colors" />
+                            <div className="space-y-8 animate-in fade-in duration-500">
+                                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm text-center relative overflow-hidden group">
+                                    <div className="relative z-10">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Volume Acumulado</p>
+                                        <p className="text-6xl font-black text-slate-900">{totalPecas.toLocaleString()}</p>
+                                        <p className="text-xs font-bold text-slate-400 mt-2 uppercase">Unidades Processadas</p>
+                                    </div>
+                                    <LucideIcon name="database" size={100} className="absolute -right-5 -bottom-5 text-slate-50 opacity-50" />
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="bg-white p-8 rounded-[2.5rem] border-l-8 border-blue-900 border shadow-sm">
-                                        <p className="text-[10px] font-black text-blue-900 uppercase mb-4">Conferente Performance</p>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="bg-slate-50 p-4 rounded-2xl text-center">
-                                                <p className="text-[8px] font-bold text-slate-400 uppercase">Meta</p>
-                                                <p className="text-2xl font-black text-blue-900">{metas.CONFERENTE}</p>
-                                            </div>
-                                            <div className="bg-blue-900 p-4 rounded-2xl text-center text-white shadow-lg">
-                                                <p className="text-[8px] font-bold text-blue-200 uppercase">Real</p>
-                                                <p className="text-2xl font-black">{mediaRealConf}</p>
-                                            </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    {/* Gráfico Conferente */}
+                                    <div className="bg-white p-8 rounded-[2rem] border-l-8 border-blue-900 shadow-sm">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="font-black text-xs uppercase text-blue-900">Produtividade Conferente</h3>
+                                            <span className="bg-blue-50 text-blue-900 px-3 py-1 rounded-full text-[10px] font-black">Meta: {metas.CONFERENTE}</span>
+                                        </div>
+                                        <div className="h-64">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={data.atual}>
+                                                    <XAxis dataKey="dia" hide />
+                                                    <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
+                                                    <Bar dataKey={(d) => calculateProdReal(d.pecas, d.conferentes, d.jornada)} fill="#1E3A8A" radius={[6, 6, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
                                         </div>
                                     </div>
-                                    <div className="bg-white p-8 rounded-[2.5rem] border-l-8 border-red-800 border shadow-sm">
-                                        <p className="text-[10px] font-black text-red-800 uppercase mb-4">Auxiliar Performance</p>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="bg-slate-50 p-4 rounded-2xl text-center">
-                                                <p className="text-[8px] font-bold text-slate-400 uppercase">Meta</p>
-                                                <p className="text-2xl font-black text-red-800">{metas.AUXILIAR}</p>
-                                            </div>
-                                            <div className="bg-red-800 p-4 rounded-2xl text-center text-white shadow-lg">
-                                                <p className="text-[8px] font-bold text-red-100 uppercase">Real</p>
-                                                <p className="text-2xl font-black">{mediaRealAux}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
 
-                                <div className="bg-white p-4 md:p-8 rounded-[2.5rem] border shadow-sm h-[400px]">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={data.atual}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                                            <XAxis dataKey="dia" tick={{fontSize: 9, fontWeight: 'bold'}} />
-                                            <YAxis tick={{fontSize: 9}} />
-                                            <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
-                                            <Bar dataKey={(d) => calculateProdReal(d.pecas, d.conferentes, d.jornada)} fill="#1E3A8A" name="Conf." radius={[4,4,0,0]} />
-                                            <Bar dataKey={(d) => calculateProdReal(d.pecas, d.auxiliares, d.jornada)} fill="#991B1B" name="Aux." radius={[4,4,0,0]} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
+                                    {/* Gráfico Auxiliar */}
+                                    <div className="bg-white p-8 rounded-[2rem] border-l-8 border-red-800 shadow-sm">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="font-black text-xs uppercase text-red-800">Produtividade Auxiliar</h3>
+                                            <span className="bg-red-50 text-red-800 px-3 py-1 rounded-full text-[10px] font-black">Meta: {metas.AUXILIAR}</span>
+                                        </div>
+                                        <div className="h-64">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={data.atual}>
+                                                    <XAxis dataKey="dia" hide />
+                                                    <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
+                                                    <Bar dataKey={(d) => calculateProdReal(d.pecas, d.auxiliares, d.jornada)} fill="#991B1B" radius={[6, 6, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
 
                         {activeTab === 'input' && (
-                            <div className="bg-white rounded-[2rem] border shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+                            <div className="bg-white rounded-[2rem] border border-slate-200 overflow-hidden shadow-xl print-card">
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left min-w-[700px]">
-                                        <thead>
-                                            <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 border-b">
-                                                <th className="p-6">Dia</th>
-                                                <th className="p-4 text-center">Volume</th>
-                                                <th className="p-4 text-center">Jornada</th>
-                                                <th className="p-4 text-center">Qtd Conf.</th>
-                                                <th className="p-4 text-center">Qtd Aux.</th>
+                                        <thead className="bg-slate-50 border-b border-slate-100">
+                                            <tr className="text-[10px] font-black uppercase text-slate-400">
+                                                <th className="p-6">Dia da Semana</th>
+                                                <th className="p-6 text-center">Volume (Pç)</th>
+                                                <th className="p-6 text-center">Jornada (H)</th>
+                                                <th className="p-6 text-center text-blue-900">Qtd Conf.</th>
+                                                <th className="p-6 text-center text-red-800">Qtd Aux.</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y">
+                                        <tbody className="divide-y divide-slate-50">
                                             {data.atual.map(item => (
                                                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="p-6 font-black text-[10px] uppercase text-slate-500">{item.dia}</td>
-                                                    <td className="p-4"><input type="number" className="w-full p-3 bg-slate-100 rounded-xl text-center font-black text-sm" value={item.pecas || ''} onChange={(e) => updateData(item.id, 'pecas', e.target.value)} /></td>
-                                                    <td className="p-4"><input type="number" step="0.5" className="w-full p-3 bg-amber-50 rounded-xl text-center font-black text-amber-800" value={item.jornada || ''} onChange={(e) => updateData(item.id, 'jornada', e.target.value)} /></td>
-                                                    <td className="p-4"><input type="number" className="w-full p-3 bg-blue-50 rounded-xl text-center font-black text-blue-900" value={item.conferentes || ''} onChange={(e) => updateData(item.id, 'conferentes', e.target.value)} /></td>
-                                                    <td className="p-4"><input type="number" className="w-full p-3 bg-red-50 rounded-xl text-center font-black text-red-900" value={item.auxiliares || ''} onChange={(e) => updateData(item.id, 'auxiliares', e.target.value)} /></td>
+                                                    <td className="p-6 font-black text-xs text-slate-500 uppercase">{item.dia}</td>
+                                                    <td className="p-6">
+                                                        <input type="number" value={item.pecas || ''} className="w-full p-3 bg-slate-100 rounded-xl text-center font-black text-slate-800 no-print" 
+                                                        onChange={(e) => setData({...data, atual: data.atual.map(x => x.id === item.id ? {...x, pecas: parseInt(e.target.value) || 0} : x)})} />
+                                                        <span className="hidden print:block text-center font-bold">{item.pecas}</span>
+                                                    </td>
+                                                    <td className="p-6">
+                                                        <input type="number" step="0.5" value={item.jornada || ''} className="w-full p-3 bg-amber-50 rounded-xl text-center font-black text-amber-800 no-print" 
+                                                        onChange={(e) => setData({...data, atual: data.atual.map(x => x.id === item.id ? {...x, jornada: parseFloat(e.target.value) || 0} : x)})} />
+                                                        <span className="hidden print:block text-center font-bold">{item.jornada}h</span>
+                                                    </td>
+                                                    <td className="p-6">
+                                                        <input type="number" value={item.conferentes || ''} className="w-full p-3 bg-blue-50 rounded-xl text-center font-black text-blue-900 no-print" 
+                                                        onChange={(e) => setData({...data, atual: data.atual.map(x => x.id === item.id ? {...x, conferentes: parseInt(e.target.value) || 0} : x)})} />
+                                                        <span className="hidden print:block text-center font-bold">{item.conferentes}</span>
+                                                    </td>
+                                                    <td className="p-6">
+                                                        <input type="number" value={item.auxiliares || ''} className="w-full p-3 bg-red-50 rounded-xl text-center font-black text-red-900 no-print" 
+                                                        onChange={(e) => setData({...data, atual: data.atual.map(x => x.id === item.id ? {...x, auxiliares: parseInt(e.target.value) || 0} : x)})} />
+                                                        <span className="hidden print:block text-center font-bold">{item.auxiliares}</span>
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -295,88 +262,54 @@
                             </div>
                         )}
 
-                        {activeTab === 'meta' && (
-                            <div className="bg-slate-950 p-10 rounded-[2rem] shadow-2xl text-center text-white space-y-10">
-                                <h2 className="text-[10px] font-black uppercase tracking-widest opacity-50 flex items-center justify-center gap-2">
-                                    <LucideIcon icon={Settings2} size={18} className="text-red-700" /> Configuração de Metas
-                                </h2>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-2xl mx-auto">
-                                    <div className="space-y-4">
-                                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Meta Conferente (pç/h)</p>
-                                        <input type="number" value={metas.CONFERENTE} onChange={(e) => setMetas({...metas, CONFERENTE: parseFloat(e.target.value) || 0})} className="w-full bg-slate-900 p-6 rounded-2xl text-3xl font-black text-blue-700 text-center outline-none border border-slate-800 focus:border-blue-900" />
-                                    </div>
-                                    <div className="space-y-4">
-                                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Meta Auxiliar (pç/h)</p>
-                                        <input type="number" value={metas.AUXILIAR} onChange={(e) => setMetas({...metas, AUXILIAR: parseFloat(e.target.value) || 0})} className="w-full bg-slate-900 p-6 rounded-2xl text-3xl font-black text-red-800 text-center outline-none border border-slate-800 focus:border-red-900" />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
                         {activeTab === 'calculadora' && (
-                            <div className="bg-white p-12 rounded-[3rem] border shadow-2xl animate-in slide-in-from-top-4 duration-500">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                            <div className="bg-white p-8 md:p-12 rounded-[3rem] border border-slate-200 shadow-2xl">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
                                     <div className="space-y-8">
                                         <div>
-                                            <h2 className="text-2xl font-black text-slate-900 uppercase leading-none">Simulador de <span className="text-red-800">Necessidade</span></h2>
-                                            <p className="text-slate-400 text-sm mt-2 font-medium">Calcule o Headcount ideal para o volume planeado.</p>
+                                            <h2 className="text-2xl font-black uppercase text-slate-800">Cálculo de <span className="text-red-800">Headcount</span></h2>
+                                            <p className="text-slate-400 text-sm mt-1">Simule a equipe necessária para o volume planejado.</p>
                                         </div>
-                                        <div className="space-y-6">
+                                        <div className="space-y-4">
                                             <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">Volume Previsto</label>
-                                                <input type="number" value={calcData.pecas} onChange={(e) => setCalcData({...calcData, pecas: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 border p-5 rounded-2xl font-black text-2xl outline-none focus:ring-4 focus:ring-blue-50" />
+                                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Volume de Peças</label>
+                                                <input type="number" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-xl outline-none focus:border-blue-900 transition-all" value={calcData.pecas} onChange={(e) => setCalcData({...calcData, pecas: e.target.value})} />
                                             </div>
                                             <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">Horas de Operação</label>
-                                                <input type="number" step="0.5" value={calcData.jornada} onChange={(e) => setCalcData({...calcData, jornada: parseFloat(e.target.value) || 0})} className="w-full bg-slate-50 border p-5 rounded-2xl font-black text-2xl outline-none focus:ring-4 focus:ring-amber-50" />
+                                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Horas de Operação</label>
+                                                <input type="number" step="0.5" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-xl outline-none focus:border-amber-600 transition-all" value={calcData.jornada} onChange={(e) => setCalcData({...calcData, jornada: e.target.value})} />
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col gap-6">
-                                        <div className="bg-blue-900 p-8 rounded-[2.5rem] text-white shadow-2xl shadow-blue-900/20 text-center flex flex-col justify-center">
-                                            <p className="text-[10px] font-black uppercase opacity-60 mb-2">Conferentes Necessários</p>
-                                            <p className="text-7xl font-black">{calculateSugerido(calcData.pecas, calcData.jornada, metas.CONFERENTE)}</p>
-                                            <p className="text-[10px] font-bold uppercase mt-4">Meta: {metas.CONFERENTE} pç/h</p>
+                                    <div className="space-y-4">
+                                        <div className="bg-blue-900 p-8 rounded-[2rem] text-white shadow-xl">
+                                            <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Conferentes Necessários</p>
+                                            <p className="text-6xl font-black tracking-tighter">{calculateSugerido(calcData.pecas, calcData.jornada, metas.CONFERENTE)}</p>
+                                            <p className="text-[10px] font-bold mt-2 uppercase">Base: {metas.CONFERENTE} pç/h</p>
                                         </div>
-                                        <div className="bg-red-800 p-8 rounded-[2.5rem] text-white shadow-2xl shadow-red-900/20 text-center flex flex-col justify-center">
-                                            <p className="text-[10px] font-black uppercase opacity-60 mb-2">Auxiliares Necessários</p>
-                                            <p className="text-7xl font-black">{calculateSugerido(calcData.pecas, calcData.jornada, metas.AUXILIAR)}</p>
-                                            <p className="text-[10px] font-bold uppercase mt-4">Meta: {metas.AUXILIAR} pç/h</p>
+                                        <div className="bg-red-800 p-8 rounded-[2rem] text-white shadow-xl text-right">
+                                            <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Auxiliares Necessários</p>
+                                            <p className="text-6xl font-black tracking-tighter">{calculateSugerido(calcData.pecas, calcData.jornada, metas.AUXILIAR)}</p>
+                                            <p className="text-[10px] font-bold mt-2 uppercase">Base: {metas.AUXILIAR} pç/h</p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {activeTab === 'atual' && (
-                            <div className="bg-white rounded-[2.5rem] border shadow-xl overflow-hidden">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 border-b">
-                                            <tr>
-                                                <th className="p-6">Dia</th>
-                                                <th className="p-4 text-center">Peças</th>
-                                                <th className="p-4 text-center">Status Meta</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y">
-                                            {data.atual.map(item => {
-                                                const prodConf = calculateProdReal(item.pecas, item.conferentes, item.jornada);
-                                                const ok = parseFloat(prodConf) >= metas.CONFERENTE && item.pecas > 0;
-                                                return (
-                                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                                                        <td className="p-6 font-black text-[10px] uppercase text-slate-500">{item.dia}</td>
-                                                        <td className="p-4 text-center font-bold">{item.pecas.toLocaleString()}</td>
-                                                        <td className="p-4 text-center">
-                                                            <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                                                                {ok ? 'Meta Atingida' : 'Abaixo da Meta'}
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
+                        {activeTab === 'meta' && (
+                            <div className="bg-slate-950 p-10 md:p-16 rounded-[3rem] text-white text-center shadow-2xl">
+                                <LucideIcon name="settings-2" size={40} className="text-red-700 mx-auto mb-6" />
+                                <h2 className="text-xl font-black uppercase tracking-widest mb-10">Ajustar Metas de Operação</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-2xl mx-auto text-left">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">Meta Conferente (Pç/h)</label>
+                                        <input type="number" className="w-full bg-slate-900 p-6 rounded-2xl text-3xl font-black text-blue-500 outline-none focus:ring-4 focus:ring-blue-900/50" value={metas.CONFERENTE} onChange={(e) => setMetas({...metas, CONFERENTE: parseInt(e.target.value) || 0})} />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">Meta Auxiliar (Pç/h)</label>
+                                        <input type="number" className="w-full bg-slate-900 p-6 rounded-2xl text-3xl font-black text-red-600 outline-none focus:ring-4 focus:ring-red-900/50" value={metas.AUXILIAR} onChange={(e) => setMetas({...metas, AUXILIAR: parseInt(e.target.value) || 0})} />
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -390,5 +323,3 @@
     </script>
 </body>
 </html>
-
-
