@@ -1,325 +1,492 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-pt">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Desenvolvimento</title>
+    <title>CDTO | Gestão Integrada</title>
     
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Core Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- UI & Icons -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
-        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         
-        /* Ocultar elementos na impressão */
-        @media print {
-            .no-print { display: none !important; }
-            main { padding: 0 !important; margin: 0 !important; }
-            .print-card { box-shadow: none !important; border: 1px solid #ddd !important; }
+        :root {
+            --primary: #1e3a8a;
+            --accent: #991b1b;
         }
 
-        /* Esconder setas do input number */
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+
+        .glass-card {
+            background: white;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        .sidebar-item-active {
+            background-color: #991b1b;
+            color: white;
+            box-shadow: 0 10px 15px -3px rgba(153, 27, 27, 0.3);
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            main { padding: 0 !important; width: 100% !important; }
+            .print-card { border: 1px solid #ddd !important; box-shadow: none !important; }
+        }
+
         input::-webkit-outer-spin-button,
         input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     </style>
 </head>
-<body class="bg-[#F8FAFC]">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
-        const { 
-            BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell 
-        } = Recharts;
 
-        // Componente de Ícone Dinâmico
-        const LucideIcon = ({ name, size = 20, className = "" }) => {
-            useEffect(() => { lucide.createIcons(); }, []);
-            return <i data-lucide={name} className={className} style={{width: size, height: size}}></i>;
+        // --- Componente de Ícone Dinâmico ---
+        const Icon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-flex' }}></i>;
         };
 
         const App = () => {
-            const [isAuthenticated, setIsAuthenticated] = useState(false);
+            const [isAuth, setIsAuth] = useState(false);
             const [loginUser, setLoginUser] = useState('');
-            const [loginError, setLoginError] = useState('');
             const [activeTab, setActiveTab] = useState('dashboard');
             const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-            const [calcData, setCalcData] = useState({ pecas: 5000, jornada: 9 });
 
-            // Metas Persistentes
+            // --- ESTADOS DE DADOS (Baseado no seu código) ---
             const [metas, setMetas] = useState(() => {
-                const saved = localStorage.getItem('gestao_metas_v1');
+                const saved = localStorage.getItem('logistics_metas_v3');
                 return saved ? JSON.parse(saved) : { CONFERENTE: 220, AUXILIAR: 110 };
             });
 
-            // Dados Semanais
-            const [data, setData] = useState(() => {
-                const saved = localStorage.getItem('gestao_dados_v1');
-                if (saved) return JSON.parse(saved);
+            const generateWeeklyStructure = () => {
                 const dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-                return { 
-                    atual: dias.map((dia, i) => ({ id: i, dia, pecas: 0, conferentes: 0, auxiliares: 0, jornada: 9 })) 
-                };
+                return dias.map((dia, index) => ({
+                    id: `fixo-${index}`,
+                    dia: dia,
+                    pecas: 0,
+                    conferentes: 0,
+                    auxiliares: 0,
+                    jornada: 9,
+                }));
+            };
+
+            const [data, setData] = useState(() => {
+                const saved = localStorage.getItem('logistics_data_v3');
+                return saved ? JSON.parse(saved) : { atual: generateWeeklyStructure() };
             });
 
-            useEffect(() => {
-                localStorage.setItem('gestao_dados_v1', JSON.stringify(data));
-                localStorage.setItem('gestao_metas_v1', JSON.stringify(metas));
-                lucide.createIcons();
-            }, [data, metas, isAuthenticated, activeTab]);
+            const [calcData, setCalcData] = useState({ pecas: 5000, jornada: 9 });
 
-            // Cálculos
-            const calculateProdReal = (pecas, qtd, jornada) => (qtd > 0 && jornada > 0) ? (pecas / qtd / jornada).toFixed(0) : 0;
-            const calculateSugerido = (pecas, jornada, meta) => (pecas > 0 && jornada > 0) ? Math.ceil(pecas / (jornada * meta)) : 0;
+            useEffect(() => {
+                localStorage.setItem('logistics_data_v3', JSON.stringify(data));
+                localStorage.setItem('logistics_metas_v3', JSON.stringify(metas));
+            }, [data, metas]);
+
+            // --- LÓGICAS DE CÁLCULO ---
+            const calculateProdReal = (pecas, qtdPessoas, jornada) => {
+                if (!qtdPessoas || !jornada || !pecas) return 0;
+                return Math.round(pecas / qtdPessoas / jornada);
+            };
+
+            const calculateSugerido = (pecas, jornada, meta) => {
+                if (!pecas || !jornada || !meta) return 0;
+                return Math.ceil(pecas / (jornada * meta));
+            };
 
             const handleLogin = (e) => {
                 e.preventDefault();
-                if (loginUser.toUpperCase() === 'CDTO') setIsAuthenticated(true);
-                else setLoginError('Acesso negado');
+                if (loginUser.toUpperCase() === 'CDTO') setIsAuth(true);
+                else alert('Utilizador não autorizado.');
             };
 
-            const totalPecas = data.atual.reduce((acc, curr) => acc + curr.pecas, 0);
+            const resetWeek = () => {
+                if (confirm('Deseja limpar todos os dados e reiniciar a semana?')) {
+                    setData({ atual: generateWeeklyStructure() });
+                }
+            };
 
-            if (!isAuthenticated) {
+            const updateDataField = (id, field, value) => {
+                const val = field === 'dia' ? value : (value === "" ? 0 : parseFloat(value));
+                setData(prev => ({
+                    ...prev,
+                    atual: prev.atual.map(item => item.id === id ? { ...item, [field]: val } : item)
+                }));
+            };
+
+            // Totais para Dashboard
+            const totalPecasSemana = data.atual.reduce((acc, curr) => acc + (Number(curr.pecas) || 0), 0);
+            const diasAtivos = data.atual.filter(i => i.pecas > 0).length || 1;
+            
+            const mediaRealConf = Math.round(data.atual.filter(i => i.pecas > 0).reduce((acc, curr) => acc + calculateProdReal(curr.pecas, curr.conferentes, curr.jornada), 0) / diasAtivos);
+            const mediaRealAux = Math.round(data.atual.filter(i => i.pecas > 0).reduce((acc, curr) => acc + calculateProdReal(curr.pecas, curr.auxiliares, curr.jornada), 0) / diasAtivos);
+
+            const mediaSugeridaConf = Math.ceil(data.atual.reduce((acc, curr) => acc + calculateSugerido(curr.pecas, curr.jornada, metas.CONFERENTE), 0) / diasAtivos);
+            const mediaSugeridaAux = Math.ceil(data.atual.reduce((acc, curr) => acc + calculateSugerido(curr.pecas, curr.jornada, metas.AUXILIAR), 0) / diasAtivos);
+
+            // Tela de Login
+            if (!isAuth) {
                 return (
                     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
-                        <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-md shadow-2xl">
-                            <div className="flex flex-col items-center mb-10">
-                                <div className="bg-red-800 p-4 rounded-2xl text-white mb-4">
-                                    <LucideIcon name="arrow-right-left" size={32} />
+                        <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-md shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-900 via-red-800 to-blue-900"></div>
+                            <div className="text-center mb-10">
+                                <div className="w-16 h-16 bg-red-800 rounded-2xl flex items-center justify-center text-white mb-6 shadow-xl mx-auto">
+                                    <Icon name="arrow-right-left" size={32} />
                                 </div>
-                                <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">
-                                    Gestão <span className="text-blue-900">De Desenvolvimento</span>
-                                </h1>
+                                <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Gestão <span className="text-blue-900">Desenvolvimento</span></h1>
+                                <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-2">Análise de Entrada</p>
                             </div>
                             <form onSubmit={handleLogin} className="space-y-6">
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 ml-1">Utilizador</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Utilizador</label>
                                     <input 
                                         type="text" 
-                                        placeholder="Digite CDTO" 
-                                        className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl font-bold outline-none focus:border-blue-900 transition-all"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 font-bold text-center text-xl outline-none focus:ring-4 focus:ring-red-50 transition-all uppercase"
+                                        value={loginUser}
                                         onChange={(e) => setLoginUser(e.target.value)}
+                                        placeholder="LOGIN"
                                     />
                                 </div>
-                                {loginError && <p className="text-red-600 text-xs font-black text-center uppercase tracking-widest">{loginError}</p>}
-                                <button className="w-full bg-blue-900 text-white py-5 rounded-2xl font-black uppercase shadow-lg hover:bg-blue-800 active:scale-95 transition-all">Entrar</button>
+                                <button className="w-full bg-blue-900 text-white py-5 rounded-2xl font-black uppercase shadow-xl hover:bg-blue-800 active:scale-95 transition-all">Entrar</button>
                             </form>
                         </div>
                     </div>
                 );
             }
 
+            const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } = window.Recharts || {};
+
             return (
                 <div className="min-h-screen flex flex-col md:flex-row">
-                    {/* Sidebar Móvel Topo */}
-                    <div className="md:hidden bg-slate-950 p-4 flex justify-between items-center no-print">
-                        <div className="text-white font-black text-sm uppercase">Gestão Operacional</div>
-                        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-white p-2">
-                            <LucideIcon name={isMobileMenuOpen ? "x" : "menu"} />
-                        </button>
-                    </div>
-
-                    {/* Sidebar Principal */}
-                    <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-950 transition-transform md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} no-print`}>
+                    {/* Sidebar */}
+                    <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-950 text-white transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} no-print`}>
                         <div className="p-8 h-full flex flex-col">
-                            <div className="flex items-center gap-3 mb-12 text-white">
-                                <div className="bg-red-800 p-2 rounded-lg"><LucideIcon name="arrow-right-left" /></div>
-                                <span className="font-black text-lg tracking-tighter">GESTÃO</span>
+                            <div className="flex items-center gap-3 mb-10">
+                                <div className="bg-red-800 p-2 rounded-lg text-white"><Icon name="arrow-right-left" size={20} /></div>
+                                <span className="font-black text-lg tracking-tighter uppercase">Gestão <span className="text-blue-700">Dev</span></span>
                             </div>
-                            
-                            <nav className="flex-1 space-y-3">
+
+                            <nav className="flex-1 space-y-2">
                                 {[
                                     { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
                                     { id: 'input', label: 'Lançar Dados', icon: 'plus-circle' },
-                                    { id: 'meta', label: 'Metas', icon: 'target' },
-                                    { id: 'calculadora', label: 'Calculadora HC', icon: 'calculator' }
+                                    { id: 'meta', label: 'Análise de Metas', icon: 'target' },
+                                    { id: 'calculadora', label: 'Calculadora HC', icon: 'calculator' },
+                                    { id: 'atual', label: 'Histórico', icon: 'calendar-days' }
                                 ].map(item => (
                                     <button 
                                         key={item.id}
-                                        onClick={() => {setActiveTab(item.id); setIsMobileMenuOpen(false);}}
-                                        className={`w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-sm transition-all ${activeTab === item.id ? 'bg-red-800 text-white shadow-xl shadow-red-900/20' : 'text-slate-500 hover:bg-slate-900 hover:text-white'}`}
+                                        onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }}
+                                        className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-bold transition-all ${activeTab === item.id ? 'sidebar-item-active' : 'text-slate-500 hover:bg-slate-900 hover:text-white'}`}
                                     >
-                                        <LucideIcon name={item.icon} /> {item.label}
+                                        <Icon name={item.icon} size={18} /> {item.label}
                                     </button>
                                 ))}
                             </nav>
 
-                            <button onClick={() => setIsAuthenticated(false)} className="mt-auto flex items-center gap-3 p-4 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-500/10 rounded-xl transition-all">
-                                <LucideIcon name="log-out" size={16} /> Sair do Sistema
-                            </button>
+                            <div className="pt-6 border-t border-slate-800 space-y-3">
+                                <button onClick={resetWeek} className="w-full flex items-center gap-3 px-2 py-2 text-[10px] font-black uppercase text-amber-500 hover:bg-amber-500/10 transition-all">
+                                    <Icon name="rotate-ccw" size={14} /> Limpar Semana
+                                </button>
+                                <button onClick={() => window.location.reload()} className="w-full flex items-center gap-3 px-2 py-2 text-[10px] font-black uppercase text-red-500 hover:bg-red-500/10 transition-all">
+                                    <Icon name="log-out" size={14} /> Encerrar Sessão
+                                </button>
+                            </div>
                         </div>
                     </aside>
 
-                    {/* Área de Conteúdo */}
-                    <main className="flex-1 p-6 md:p-12 max-w-[1200px] mx-auto w-full">
-                        <header className="mb-10 text-center md:text-left flex flex-col md:flex-row justify-between items-center gap-4">
-                            <div>
-                                <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">{activeTab}</h1>
-                                <p className="text-slate-400 text-sm font-medium italic">Operação Logística • CDTO</p>
-                            </div>
-                            <button onClick={() => window.print()} className="bg-blue-900 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg no-print">
-                                <LucideIcon name="printer" size={16} /> PDF Relatório
+                    {/* Main Content */}
+                    <main className="flex-1 min-w-0 overflow-y-auto max-h-screen bg-[#f8fafc]">
+                        {/* Mobile Header */}
+                        <div className="md:hidden bg-slate-950 text-white p-4 flex justify-between items-center no-print">
+                            <span className="font-black text-sm uppercase tracking-tighter">Gestão Operacional</span>
+                            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 bg-slate-900 rounded-lg">
+                                <Icon name={isMobileMenuOpen ? "x" : "menu"} />
                             </button>
-                        </header>
+                        </div>
 
-                        {activeTab === 'dashboard' && (
-                            <div className="space-y-8 animate-in fade-in duration-500">
-                                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm text-center relative overflow-hidden group">
-                                    <div className="relative z-10">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Volume Acumulado</p>
-                                        <p className="text-6xl font-black text-slate-900">{totalPecas.toLocaleString()}</p>
-                                        <p className="text-xs font-bold text-slate-400 mt-2 uppercase">Unidades Processadas</p>
-                                    </div>
-                                    <LucideIcon name="database" size={100} className="absolute -right-5 -bottom-5 text-slate-50 opacity-50" />
+                        <div className="p-6 lg:p-12 max-w-7xl mx-auto">
+                            <header className="mb-10 flex flex-col md:flex-row justify-between items-center gap-6">
+                                <div className="text-center md:text-left">
+                                    <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">
+                                        {activeTab === 'dashboard' ? 'Sumário Executivo' : 
+                                         activeTab === 'input' ? 'Lançamento Diário' : 
+                                         activeTab === 'meta' ? 'Planeamento de Metas' : 
+                                         activeTab === 'calculadora' ? 'Simulador Headcount' : 'Histórico de Atividade'}
+                                    </h1>
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">CDTO • Logística de Desenvolvimento</p>
                                 </div>
+                                <button onClick={() => window.print()} className="bg-blue-900 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase flex items-center gap-2 hover:bg-red-800 transition-all shadow-lg no-print">
+                                    <Icon name="printer" size={16} /> Exportar Relatório PDF
+                                </button>
+                            </header>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    {/* Gráfico Conferente */}
-                                    <div className="bg-white p-8 rounded-[2rem] border-l-8 border-blue-900 shadow-sm">
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h3 className="font-black text-xs uppercase text-blue-900">Produtividade Conferente</h3>
-                                            <span className="bg-blue-50 text-blue-900 px-3 py-1 rounded-full text-[10px] font-black">Meta: {metas.CONFERENTE}</span>
+                            {/* --- DASHBOARD --- */}
+                            {activeTab === 'dashboard' && (
+                                <div className="space-y-8 animate-in fade-in duration-500">
+                                    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm text-center relative overflow-hidden group">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 relative z-10">Volume Total da Semana</p>
+                                        <p className="text-5xl font-black text-slate-900 relative z-10">{totalPecasSemana.toLocaleString()} <span className="text-xs text-slate-400">PÇS</span></p>
+                                        <Icon name="database" size={80} className="absolute -right-4 -bottom-4 text-slate-50 group-hover:text-slate-100 transition-all" />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* Card Conferente */}
+                                        <div className="bg-white p-8 rounded-[2.5rem] border-l-8 border-l-blue-900 border border-slate-200 shadow-sm">
+                                            <div className="flex justify-between items-start mb-6">
+                                                <div>
+                                                    <p className="text-[10px] font-black text-blue-900 uppercase tracking-widest">Conferente</p>
+                                                    <h2 className="text-xl font-black text-slate-800">Performance</h2>
+                                                </div>
+                                                <div className="bg-blue-50 p-3 rounded-2xl text-blue-900"><Icon name="users" /></div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="bg-slate-50 p-4 rounded-2xl text-center">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase">Meta</p>
+                                                    <p className="text-2xl font-black text-blue-900">{metas.CONFERENTE}</p>
+                                                </div>
+                                                <div className="bg-blue-900 p-4 rounded-2xl text-center text-white shadow-lg shadow-blue-900/20">
+                                                    <p className="text-[9px] font-black opacity-60 uppercase">Real</p>
+                                                    <p className="text-2xl font-black">{mediaRealConf}</p>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="h-64">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <BarChart data={data.atual}>
-                                                    <XAxis dataKey="dia" hide />
-                                                    <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
-                                                    <Bar dataKey={(d) => calculateProdReal(d.pecas, d.conferentes, d.jornada)} fill="#1E3A8A" radius={[6, 6, 0, 0]} />
-                                                </BarChart>
-                                            </ResponsiveContainer>
+
+                                        {/* Card Auxiliar */}
+                                        <div className="bg-white p-8 rounded-[2.5rem] border-l-8 border-l-red-800 border border-slate-200 shadow-sm">
+                                            <div className="flex justify-between items-start mb-6">
+                                                <div>
+                                                    <p className="text-[10px] font-black text-red-800 uppercase tracking-widest">Auxiliar</p>
+                                                    <h2 className="text-xl font-black text-slate-800">Performance</h2>
+                                                </div>
+                                                <div className="bg-red-50 p-3 rounded-2xl text-red-800"><Icon name="users" /></div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="bg-slate-50 p-4 rounded-2xl text-center">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase">Meta</p>
+                                                    <p className="text-2xl font-black text-red-800">{metas.AUXILIAR}</p>
+                                                </div>
+                                                <div className="bg-red-800 p-4 rounded-2xl text-center text-white shadow-lg shadow-red-900/20">
+                                                    <p className="text-[9px] font-black opacity-60 uppercase">Real</p>
+                                                    <p className="text-2xl font-black">{mediaRealAux}</p>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    {/* Gráfico Auxiliar */}
-                                    <div className="bg-white p-8 rounded-[2rem] border-l-8 border-red-800 shadow-sm">
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h3 className="font-black text-xs uppercase text-red-800">Produtividade Auxiliar</h3>
-                                            <span className="bg-red-50 text-red-800 px-3 py-1 rounded-full text-[10px] font-black">Meta: {metas.AUXILIAR}</span>
+                                    {/* Gráfico */}
+                                    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
+                                        <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
+                                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                                <Icon name="trending-up" className="text-blue-900"/> Performance Diária vs Metas
+                                            </h3>
                                         </div>
-                                        <div className="h-64">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <BarChart data={data.atual}>
-                                                    <XAxis dataKey="dia" hide />
-                                                    <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
-                                                    <Bar dataKey={(d) => calculateProdReal(d.pecas, d.auxiliares, d.jornada)} fill="#991B1B" radius={[6, 6, 0, 0]} />
-                                                </BarChart>
-                                            </ResponsiveContainer>
+                                        <div className="h-[350px] w-full">
+                                            {BarChart ? (
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <BarChart data={data.atual} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                                                        <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{fontSize: 9, fontWeight: 700}} />
+                                                        <YAxis axisLine={false} tickLine={false} tick={{fontSize: 9}} />
+                                                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
+                                                        <Bar name="Conferente" dataKey={(d) => calculateProdReal(d.pecas, d.conferentes, d.jornada)} fill="#1E3A8A" radius={[4, 4, 0, 0]} />
+                                                        <Bar name="Auxiliar" dataKey={(d) => calculateProdReal(d.pecas, d.auxiliares, d.jornada)} fill="#991B1B" radius={[4, 4, 0, 0]} />
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            ) : "A carregar..."}
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {activeTab === 'input' && (
-                            <div className="bg-white rounded-[2rem] border border-slate-200 overflow-hidden shadow-xl print-card">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left min-w-[700px]">
-                                        <thead className="bg-slate-50 border-b border-slate-100">
-                                            <tr className="text-[10px] font-black uppercase text-slate-400">
-                                                <th className="p-6">Dia da Semana</th>
-                                                <th className="p-6 text-center">Volume (Pç)</th>
-                                                <th className="p-6 text-center">Jornada (H)</th>
-                                                <th className="p-6 text-center text-blue-900">Qtd Conf.</th>
-                                                <th className="p-6 text-center text-red-800">Qtd Aux.</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                            {data.atual.map(item => (
-                                                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="p-6 font-black text-xs text-slate-500 uppercase">{item.dia}</td>
-                                                    <td className="p-6">
-                                                        <input type="number" value={item.pecas || ''} className="w-full p-3 bg-slate-100 rounded-xl text-center font-black text-slate-800 no-print" 
-                                                        onChange={(e) => setData({...data, atual: data.atual.map(x => x.id === item.id ? {...x, pecas: parseInt(e.target.value) || 0} : x)})} />
-                                                        <span className="hidden print:block text-center font-bold">{item.pecas}</span>
-                                                    </td>
-                                                    <td className="p-6">
-                                                        <input type="number" step="0.5" value={item.jornada || ''} className="w-full p-3 bg-amber-50 rounded-xl text-center font-black text-amber-800 no-print" 
-                                                        onChange={(e) => setData({...data, atual: data.atual.map(x => x.id === item.id ? {...x, jornada: parseFloat(e.target.value) || 0} : x)})} />
-                                                        <span className="hidden print:block text-center font-bold">{item.jornada}h</span>
-                                                    </td>
-                                                    <td className="p-6">
-                                                        <input type="number" value={item.conferentes || ''} className="w-full p-3 bg-blue-50 rounded-xl text-center font-black text-blue-900 no-print" 
-                                                        onChange={(e) => setData({...data, atual: data.atual.map(x => x.id === item.id ? {...x, conferentes: parseInt(e.target.value) || 0} : x)})} />
-                                                        <span className="hidden print:block text-center font-bold">{item.conferentes}</span>
-                                                    </td>
-                                                    <td className="p-6">
-                                                        <input type="number" value={item.auxiliares || ''} className="w-full p-3 bg-red-50 rounded-xl text-center font-black text-red-900 no-print" 
-                                                        onChange={(e) => setData({...data, atual: data.atual.map(x => x.id === item.id ? {...x, auxiliares: parseInt(e.target.value) || 0} : x)})} />
-                                                        <span className="hidden print:block text-center font-bold">{item.auxiliares}</span>
-                                                    </td>
+                            {/* --- LANÇAMENTO --- */}
+                            {activeTab === 'input' && (
+                                <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+                                    <div className="bg-slate-900 p-6 text-white text-center sm:text-left">
+                                        <h2 className="font-black text-xs uppercase tracking-widest flex items-center gap-2"><Icon name="plus-circle" className="text-red-600"/> Entrada de Dados Diária</h2>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left min-w-[800px]">
+                                            <thead>
+                                                <tr className="text-[10px] font-black text-slate-400 uppercase bg-slate-50 border-b">
+                                                    <th className="p-6">Dia</th>
+                                                    <th className="p-4 text-center">Volume (PÇS)</th>
+                                                    <th className="p-4 text-center">Horas/Dia</th>
+                                                    <th className="p-4 text-center text-blue-900">Nº Conf.</th>
+                                                    <th className="p-4 text-center text-red-800">Nº Aux.</th>
+                                                    <th className="p-4 text-center">Prod. Conf</th>
+                                                    <th className="p-4 text-center">Prod. Aux</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {data.atual.map(item => {
+                                                    const prodC = calculateProdReal(item.pecas, item.conferentes, item.jornada);
+                                                    const prodA = calculateProdReal(item.pecas, item.auxiliares, item.jornada);
+                                                    return (
+                                                        <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                                                            <td className="p-6 font-black text-[10px] uppercase text-slate-500">{item.dia}</td>
+                                                            <td className="p-4">
+                                                                <input type="number" className="w-full p-3 bg-slate-100 rounded-xl text-center font-black outline-none focus:ring-2 focus:ring-blue-900 no-print" value={item.pecas || ''} onChange={(e) => updateDataField(item.id, 'pecas', e.target.value)} />
+                                                                <span className="hidden print:block text-center font-black">{item.pecas}</span>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <input type="number" step="0.5" className="w-full p-3 bg-amber-50 rounded-xl text-center font-black text-amber-800 outline-none no-print" value={item.jornada || ''} onChange={(e) => updateDataField(item.id, 'jornada', e.target.value)} />
+                                                                <span className="hidden print:block text-center font-black">{item.jornada}h</span>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <input type="number" className="w-full p-3 bg-blue-50 rounded-xl text-center font-black text-blue-900 outline-none no-print" value={item.conferentes || ''} onChange={(e) => updateDataField(item.id, 'conferentes', e.target.value)} />
+                                                                <span className="hidden print:block text-center font-black">{item.conferentes}</span>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <input type="number" className="w-full p-3 bg-red-50 rounded-xl text-center font-black text-red-900 outline-none no-print" value={item.auxiliares || ''} onChange={(e) => updateDataField(item.id, 'auxiliares', e.target.value)} />
+                                                                <span className="hidden print:block text-center font-black">{item.auxiliares}</span>
+                                                            </td>
+                                                            <td className={`p-4 text-center font-black text-sm ${prodC >= metas.CONFERENTE ? 'text-blue-900' : 'text-slate-400'}`}>{prodC}</td>
+                                                            <td className={`p-4 text-center font-black text-sm ${prodA >= metas.AUXILIAR ? 'text-red-800' : 'text-slate-400'}`}>{prodA}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {activeTab === 'calculadora' && (
-                            <div className="bg-white p-8 md:p-12 rounded-[3rem] border border-slate-200 shadow-2xl">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-                                    <div className="space-y-8">
-                                        <div>
-                                            <h2 className="text-2xl font-black uppercase text-slate-800">Cálculo de <span className="text-red-800">Headcount</span></h2>
-                                            <p className="text-slate-400 text-sm mt-1">Simule a equipe necessária para o volume planejado.</p>
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Volume de Peças</label>
-                                                <input type="number" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-xl outline-none focus:border-blue-900 transition-all" value={calcData.pecas} onChange={(e) => setCalcData({...calcData, pecas: e.target.value})} />
+                            {/* --- CALCULADORA --- */}
+                            {activeTab === 'calculadora' && (
+                                <div className="max-w-4xl mx-auto animate-in zoom-in-95 duration-500">
+                                    <div className="bg-white p-12 rounded-[3rem] border border-slate-200 shadow-2xl grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
+                                        <div className="space-y-8">
+                                            <h2 className="text-2xl font-black uppercase text-slate-800 leading-tight">Simulador de<br/><span className="text-red-800">Necessidade (HC)</span></h2>
+                                            <div className="space-y-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Volume Previsto</label>
+                                                    <input type="number" className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl font-black text-3xl focus:border-blue-900 outline-none transition-all" value={calcData.pecas} onChange={(e) => setCalcData({...calcData, pecas: Number(e.target.value)})} />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Horas Operacionais</label>
+                                                    <input type="number" step="0.5" className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl font-black text-3xl focus:border-blue-900 outline-none transition-all" value={calcData.jornada} onChange={(e) => setCalcData({...calcData, jornada: Number(e.target.value)})} />
+                                                </div>
                                             </div>
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Horas de Operação</label>
-                                                <input type="number" step="0.5" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-xl outline-none focus:border-amber-600 transition-all" value={calcData.jornada} onChange={(e) => setCalcData({...calcData, jornada: e.target.value})} />
+                                        </div>
+                                        <div className="space-y-6">
+                                            <div className="bg-blue-900 p-10 rounded-[2.5rem] text-white shadow-2xl shadow-blue-900/30 text-center transform hover:scale-105 transition-transform">
+                                                <p className="text-[10px] font-bold uppercase opacity-60 mb-2">Sugerido Conferentes</p>
+                                                <p className="text-7xl font-black">{calculateSugerido(calcData.pecas, calcData.jornada, metas.CONFERENTE)}</p>
                                             </div>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div className="bg-blue-900 p-8 rounded-[2rem] text-white shadow-xl">
-                                            <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Conferentes Necessários</p>
-                                            <p className="text-6xl font-black tracking-tighter">{calculateSugerido(calcData.pecas, calcData.jornada, metas.CONFERENTE)}</p>
-                                            <p className="text-[10px] font-bold mt-2 uppercase">Base: {metas.CONFERENTE} pç/h</p>
-                                        </div>
-                                        <div className="bg-red-800 p-8 rounded-[2rem] text-white shadow-xl text-right">
-                                            <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Auxiliares Necessários</p>
-                                            <p className="text-6xl font-black tracking-tighter">{calculateSugerido(calcData.pecas, calcData.jornada, metas.AUXILIAR)}</p>
-                                            <p className="text-[10px] font-bold mt-2 uppercase">Base: {metas.AUXILIAR} pç/h</p>
+                                            <div className="bg-red-800 p-10 rounded-[2.5rem] text-white shadow-2xl shadow-red-900/30 text-center transform hover:scale-105 transition-transform">
+                                                <p className="text-[10px] font-bold uppercase opacity-60 mb-2">Sugerido Auxiliares</p>
+                                                <p className="text-7xl font-black">{calculateSugerido(calcData.pecas, calcData.jornada, metas.AUXILIAR)}</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {activeTab === 'meta' && (
-                            <div className="bg-slate-950 p-10 md:p-16 rounded-[3rem] text-white text-center shadow-2xl">
-                                <LucideIcon name="settings-2" size={40} className="text-red-700 mx-auto mb-6" />
-                                <h2 className="text-xl font-black uppercase tracking-widest mb-10">Ajustar Metas de Operação</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-2xl mx-auto text-left">
-                                    <div className="space-y-3">
-                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">Meta Conferente (Pç/h)</label>
-                                        <input type="number" className="w-full bg-slate-900 p-6 rounded-2xl text-3xl font-black text-blue-500 outline-none focus:ring-4 focus:ring-blue-900/50" value={metas.CONFERENTE} onChange={(e) => setMetas({...metas, CONFERENTE: parseInt(e.target.value) || 0})} />
-                                    </div>
-                                    <div className="space-y-3">
-                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">Meta Auxiliar (Pç/h)</label>
-                                        <input type="number" className="w-full bg-slate-900 p-6 rounded-2xl text-3xl font-black text-red-600 outline-none focus:ring-4 focus:ring-red-900/50" value={metas.AUXILIAR} onChange={(e) => setMetas({...metas, AUXILIAR: parseInt(e.target.value) || 0})} />
+                            {/* --- HISTÓRICO --- */}
+                            {activeTab === 'atual' && (
+                                <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden animate-in slide-in-from-right-4 duration-500">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left min-w-[700px]">
+                                            <thead>
+                                                <tr className="text-[10px] font-black text-slate-400 uppercase bg-slate-50 border-b">
+                                                    <th className="p-6">Dia Útil</th>
+                                                    <th className="p-6 text-center">Volume Realizado</th>
+                                                    <th className="p-6 text-center">Prod. Conferente</th>
+                                                    <th className="p-6 text-center">Prod. Auxiliar</th>
+                                                    <th className="p-6 text-center">Status Global</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {data.atual.map(item => {
+                                                    const prodC = calculateProdReal(item.pecas, item.conferentes, item.jornada);
+                                                    const prodA = calculateProdReal(item.pecas, item.auxiliares, item.jornada);
+                                                    const ok = prodC >= metas.CONFERENTE && prodA >= metas.AUXILIAR;
+                                                    return (
+                                                        <tr key={item.id} className="hover:bg-slate-50/50">
+                                                            <td className="p-5 px-8 font-black text-[10px] uppercase text-slate-500">{item.dia}</td>
+                                                            <td className="p-5 text-center font-bold">{item.pecas.toLocaleString()}</td>
+                                                            <td className={`p-5 text-center font-black ${prodC >= metas.CONFERENTE ? 'text-blue-900' : 'text-red-500'}`}>{prodC}</td>
+                                                            <td className={`p-5 text-center font-black ${prodA >= metas.AUXILIAR ? 'text-red-800' : 'text-red-500'}`}>{prodA}</td>
+                                                            <td className="p-5 text-center">
+                                                                <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${ok ? 'bg-green-100 text-green-700' : (item.pecas > 0 ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-400')}`}>
+                                                                    {item.pecas > 0 ? (ok ? 'Meta Atingida' : 'Abaixo da Meta') : 'Sem Dados'}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+
+                            {/* --- CONFIGURAÇÃO DE METAS --- */}
+                            {activeTab === 'meta' && (
+                                <div className="max-w-2xl mx-auto animate-in fade-in duration-500">
+                                    <div className="bg-slate-950 p-12 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
+                                        <div className="text-center mb-12">
+                                            <Icon name="settings-2" size={32} className="text-red-700 mx-auto mb-4" />
+                                            <h2 className="text-xl font-extrabold uppercase tracking-widest">Configuração de Metas</h2>
+                                            <p className="text-slate-500 text-[10px] font-bold mt-2 uppercase">Alvos de Produtividade / Hora</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-10">
+                                            <div className="space-y-3 text-center">
+                                                <label className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Conferência</label>
+                                                <input type="number" className="w-full bg-slate-900 border-2 border-slate-800 p-8 rounded-3xl text-5xl font-black text-white text-center outline-none focus:border-blue-900 transition-all" value={metas.CONFERENTE} onChange={(e) => setMetas({...metas, CONFERENTE: Number(e.target.value)})} />
+                                            </div>
+                                            <div className="space-y-3 text-center">
+                                                <label className="text-[10px] font-black uppercase text-red-600 tracking-widest">Auxiliares</label>
+                                                <input type="number" className="w-full bg-slate-900 border-2 border-slate-800 p-8 rounded-3xl text-5xl font-black text-white text-center outline-none focus:border-red-800 transition-all" value={metas.AUXILIAR} onChange={(e) => setMetas({...metas, AUXILIAR: Number(e.target.value)})} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </main>
                 </div>
             );
         };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        // Inicialização Segura
+        const init = () => {
+            const rootElement = document.getElementById('root');
+            if (rootElement) {
+                const root = ReactDOM.createRoot(rootElement);
+                root.render(<App />);
+            }
+        };
+
+        window.onload = () => {
+            if (typeof Recharts === 'undefined' || typeof lucide === 'undefined') {
+                setTimeout(init, 500);
+            } else {
+                init();
+            }
+        };
     </script>
 </body>
 </html>
+
+
